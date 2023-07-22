@@ -14,6 +14,8 @@ function Invoke-ScriptSentry {
     ScriptSentry will fail.
 
     #>
+    [CmdletBinding()]
+    Param()
 
     Get-Art -Version '0.1'
 
@@ -22,20 +24,20 @@ function Invoke-ScriptSentry {
 
     # Get a list of all logon scripts
     $LogonScripts = Get-LogonScripts -Domain $Targets
-
+    
     # Find logon scripts that contain unc paths (e.g. \\srv01\fileshare1)
     $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
 
     # Find unsafe permissions for unc paths found in logon scripts
-    $UnsafePermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
+    Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
 
     # Find unsafe permissions on logon scripts
-    $UnsafeLogonScriptPermissions = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
+    Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
 
     # Find admins that have logon scripts assigned
-    $AdminsWithLogonScripts = Find-AdminLogonScripts
+    Find-AdminLogonScripts
 
     # Find credentials in logon scripts
-    $LogonScriptCredentials = Find-LogonScriptCredentials -LogonScripts $LogonScripts
+    Find-LogonScriptCredentials -LogonScripts $LogonScripts
 
 }

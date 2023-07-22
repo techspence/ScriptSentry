@@ -1,12 +1,11 @@
 ﻿function Find-AdminLogonScripts {
-    $Admins = @()
     $AdminGroups = "Domain Admins|Enterprise Admins|Administrators"
     $AdminLogonScripts = Get-ADUser -Filter { Enabled -eq $true } -Properties samaccountname, scriptPath, memberOf `
-    | Where-Object { $_.scriptPath -ne $null -and $_.MemberOf -match $AdminGroups }         
-    Write-Host "`n[!] Admins found with logon scripts"
-    Write-Host "- User: $($AdminLogonScripts.DistinguishedName)"
-    Write-Host "- logonscript: $($AdminLogonScripts.scriptPath)"
-    Write-Host ""              
+    | Where-Object { $null -ne $_.scriptPath -and $_.MemberOf -match $AdminGroups }         
+    Write-Output "`n[!] Admins found with logon scripts"
+    Write-Output "- User: $($AdminLogonScripts.DistinguishedName)"
+    Write-Output "- logonscript: $($AdminLogonScripts.scriptPath)"
+    Write-Output ""              
 }
 function Find-LogonScriptCredentials {
     [CmdletBinding()]
@@ -15,14 +14,15 @@ function Find-LogonScriptCredentials {
         [array]$LogonScripts
     )
     foreach ($script in $LogonScripts) {
+        Write-Verbose -Message "Checking $($Script.FullName) for credentials.."
         $Credentials = Get-Content -Path $script.FullName | Select-String -Pattern "/user:" -AllMatches
         if ($Credentials) {
-            Write-Host "`n[!] CREDENTIALS FOUND!"
-            Write-Host "- File: $($script.FullName)"
+            Write-Output "`n[!] CREDENTIALS FOUND!"
+            Write-Output "- File: $($script.FullName)"
             $Credentials | ForEach-Object {
-                Write-Host "`t- Credential: $_"
+                Write-Output "`t- Credential: $_"
             }
-            Write-Host ""
+            Write-Output ""
         }
     } 
 }
@@ -37,7 +37,10 @@ function Find-UNCScripts {
     foreach ($script in $LogonScripts) {
         $UNCFiles += Get-Content $script.FullName | Select-String -Pattern '\\.*\.\w+' | foreach { $_.Matches.Value }
     }
-
+    Write-Verbose "[+] UNC scripts:"
+    $UNCFiles | ForEach-Object {
+        Write-Verbose -Message "$_"
+    }
     return $UNCFiles
 }
 function Find-UnsafeLogonScriptPermissions {
@@ -52,17 +55,18 @@ function Find-UnsafeLogonScriptPermissions {
     $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator'
     $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
     foreach ($script in $LogonScripts) {
+        Write-Verbose -Message "Checking $($script.FullName) for unsafe permissions.."
         $ACL = (Get-Acl $script.FullName).Access
         foreach ($entry in $ACL) {
             if ($entry.FileSystemRights -match $UnsafeRights `
                     -and $entry.AccessControlType -eq "Allow" `
                     -and $entry.IdentityReference -notmatch $SafeUsers
             ) {
-                Write-Host "`n[!] UNSAFE ACL FOUND!"
-                Write-Host "- File: $($script.FullName)"
-                Write-Host "- User: $($entry.IdentityReference.Value)"
-                Write-Host "- Rights: $($entry.FileSystemRights)"
-                Write-Host ""
+                Write-Output "`n[!] UNSAFE ACL FOUND!"
+                Write-Output "- File: $($script.FullName)"
+                Write-Output "- User: $($entry.IdentityReference.Value)"
+                Write-Output "- Rights: $($entry.FileSystemRights)"
+                Write-Output ""
             }
         }
     }
@@ -79,17 +83,18 @@ function Find-UnsafeUNCPermissions {
     $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator'
     $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
     foreach ($script in $UNCScripts) {
+        Write-Verbose -Message "Checking $script for unsafe permissions.."
         $ACL = (Get-Acl $script).Access
         foreach ($entry in $ACL) {
             if ($entry.FileSystemRights -match $UnsafeRights `
                     -and $entry.AccessControlType -eq "Allow" `
                     -and $entry.IdentityReference -notmatch $SafeUsers
             ) {
-                Write-Host "`n[!] UNSAFE ACL FOUND!"
-                Write-Host "- File: $script"
-                Write-Host "- User: $($entry.IdentityReference.Value)"
-                Write-Host "- Rights: $($entry.FileSystemRights)"
-                Write-Host ""
+                Write-Output "`n[!] UNSAFE ACL FOUND!"
+                Write-Output "- File: $script"
+                Write-Output "- User: $($entry.IdentityReference.Value)"
+                Write-Output "- Rights: $($entry.FileSystemRights)"
+                Write-Output ""
             }
         }
     }
@@ -141,7 +146,10 @@ function Get-LogonScripts {
     $SysvolScripts = '\\' + (Get-ADDomain).DNSRoot + '\sysvol\' + (Get-ADDomain).DNSRoot + '\scripts'
     $ExtensionList = '.bat|.vbs|.ps1|.cmd'
     $LogonScripts = Get-ChildItem -Path $SysvolScripts -Recurse | Where-Object { $_.Extension -match $ExtensionList }
-
+    Write-Verbose "[+] Logon scripts:"
+    $LogonScripts | ForEach-Object {
+        Write-Verbose -Message "$($_.fullName)"
+    }
     return $LogonScripts
 }
 function Invoke-ScriptSentry {
@@ -160,6 +168,8 @@ function Invoke-ScriptSentry {
     ScriptSentry will fail.
 
     #>
+    [CmdletBinding()]
+    Param()
 
     Get-Art -Version '0.1'
 
@@ -168,21 +178,21 @@ function Invoke-ScriptSentry {
 
     # Get a list of all logon scripts
     $LogonScripts = Get-LogonScripts -Domain $Targets
-
+    
     # Find logon scripts that contain unc paths (e.g. \\srv01\fileshare1)
     $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
 
     # Find unsafe permissions for unc paths found in logon scripts
-    $UnsafePermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
+    Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
 
     # Find unsafe permissions on logon scripts
-    $UnsafeLogonScriptPermissions = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
+    Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
 
     # Find admins that have logon scripts assigned
-    $AdminsWithLogonScripts = Find-AdminLogonScripts
+    Find-AdminLogonScripts
 
     # Find credentials in logon scripts
-    $LogonScriptCredentials = Find-LogonScriptCredentials -LogonScripts $LogonScripts
+    Find-LogonScriptCredentials -LogonScripts $LogonScripts
 }
 
 $ModuleFunctions = @{

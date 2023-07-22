@@ -5,14 +5,15 @@ function Find-LogonScriptCredentials {
         [array]$LogonScripts
     )
     foreach ($script in $LogonScripts) {
+        Write-Verbose -Message "Checking $($Script.FullName) for credentials.."
         $Credentials = Get-Content -Path $script.FullName | Select-String -Pattern "/user:" -AllMatches
         if ($Credentials) {
-            Write-Host "`n[!] CREDENTIALS FOUND!"
-            Write-Host "- File: $($script.FullName)"
+            Write-Output "`n[!] CREDENTIALS FOUND!"
+            Write-Output "- File: $($script.FullName)"
             $Credentials | ForEach-Object {
-                Write-Host "`t- Credential: $_"
+                Write-Output "`t- Credential: $_"
             }
-            Write-Host ""
+            Write-Output ""
         }
     } 
 }
