@@ -2,7 +2,7 @@
 ScriptSentry finds misconfigured and dangerous logon scripts.
 
 ### Installing
-```
+```PowerShell
 git clone https://github.com/techspence/ScriptSentry
 .\Build\Build-Module.ps1
 Import-Module ScriptSentry.psm1
