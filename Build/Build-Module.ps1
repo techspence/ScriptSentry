@@ -34,8 +34,8 @@ Build-Module -ModuleName 'ScriptSentry' {
     # those modules are not available in PowerShellGallery so user has to have them installed
     $ExternalModules = @(
         # Required RSAT AD module
-        'ActiveDirectory'
-        'ServerManager'
+        # 'ActiveDirectory'
+        # 'ServerManager'
         # those modules are builtin in PowerShell so no need to install them
         # could as well be ignored with New-ConfigurationModuleSkip
         'Microsoft.PowerShell.Utility'
