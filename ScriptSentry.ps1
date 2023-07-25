@@ -1,4 +1,27 @@
-﻿function Find-AdminLogonScripts {
+﻿<#
+.SYNOPSIS
+ScriptSentry finds misconfigured and dangerous logon scripts.
+
+.DESCRIPTION
+ScriptSentry searches the NETLOGON share to 
+    1) identify plaintext credentials in logon scripts
+    2) identify admins that have logon script set 
+    3) identify scripts and shares that may have dangerous permissions
+
+.EXAMPLE
+Invoke-ScriptSentry
+
+.EXAMPLE
+Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
+
+.EXAMPLE
+ScriptSentry.ps1
+
+#>
+[CmdletBinding()]
+Param()
+
+function Find-AdminLogonScripts {
     $AdminGroups = "Domain Admins|Enterprise Admins|Administrators"
     # $AdminLogonScripts = Get-ADUser -Filter {Enabled -eq $true} -Properties samaccountname,scriptPath,memberOf | Where-Object {$null -ne $_.scriptPath -and $_.MemberOf -match $AdminGroups}
     
@@ -178,47 +201,23 @@ function Get-LogonScripts {
     }
     return $LogonScripts
 }
-function Invoke-ScriptSentry {
-    <#
-    .SYNOPSIS
-    ScriptSentry finds misconfigured and dangerous logon scripts.
 
-    .DESCRIPTION
-    ScriptSentry searches the NETLOGON share to 
-        1) identify plaintext credentials in logon scripts
-        2) identify admins that have logon script set 
-        3) identify scripts and shares that may have dangerous permissions
+Get-Art -Version '0.1'
 
-    .EXAMPLE
-    Invoke-ScriptSentry
+# Get a list of all logon scripts
+$LogonScripts = Get-LogonScripts
 
-    .EXAMPLE
-    Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
+# Find logon scripts that contain unc paths (e.g. \\srv01\fileshare1)
+$UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
 
-    .EXAMPLE
-    ScriptSentry.ps1
+# Find unsafe permissions for unc paths found in logon scripts
+Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
 
-    #>
-    [CmdletBinding()]
-    Param()
+# Find unsafe permissions on logon scripts
+Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
 
-    Get-Art -Version '0.1'
+# Find admins that have logon scripts assigned
+Find-AdminLogonScripts
 
-    # Get a list of all logon scripts
-    $LogonScripts = Get-LogonScripts
-    
-    # Find logon scripts that contain unc paths (e.g. \\srv01\fileshare1)
-    $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
-
-    # Find unsafe permissions for unc paths found in logon scripts
-    Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
-
-    # Find unsafe permissions on logon scripts
-    Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
-
-    # Find admins that have logon scripts assigned
-    Find-AdminLogonScripts
-
-    # Find credentials in logon scripts
-    Find-LogonScriptCredentials -LogonScripts $LogonScripts
-}
+# Find credentials in logon scripts
+Find-LogonScriptCredentials -LogonScripts $LogonScripts
