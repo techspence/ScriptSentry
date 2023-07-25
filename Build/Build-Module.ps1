@@ -20,7 +20,6 @@ Build-Module -ModuleName 'ScriptSentry' {
         CompatiblePSEditions = @('Desktop', 'Core')
         GUID                 = 'e1cd2b55-3b4f-41bd-a168-40db41e34349'
         Author               = 'Spencer Alessi'
-        # CompanyName          = 'Trimarc'
         Copyright            = "(c) 2023 - $((Get-Date).Year). All rights reserved."
         Description          = 'ScriptSentry finds misconfigured and dangerous logon scripts.'
         PowerShellVersion    = '5.1'

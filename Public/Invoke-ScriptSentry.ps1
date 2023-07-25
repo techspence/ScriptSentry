@@ -13,6 +13,12 @@ function Invoke-ScriptSentry {
     install the module. If module installation does not complete successfully,
     ScriptSentry will fail.
 
+    .EXAMPLE
+    Invoke-ScriptSentry
+
+    .EXAMPLE
+    Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
+
     #>
     [CmdletBinding()]
     Param()
