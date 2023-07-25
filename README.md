@@ -1,4 +1,6 @@
 # ScriptSentry
+![ScriptSentry](ScriptSentry.png)
+
 ScriptSentry finds misconfigured and dangerous logon scripts.
 
 ### Installing & Running
