@@ -37,9 +37,9 @@ Invoke-ScriptSentry
                               by: Spencer Alessi @techspence
                                           v0.1                                
 [!] UNSAFE ACL FOUND!
-- File: \\eureka-dc01\fileshare1\run.bat
-- User: EUREKA\testuser
-- Rights: Write, ReadAndExecute, Synchronize
+- File: \\eureka.local\sysvol\eureka.local\scripts\run.vbs
+- User: BUILTIN\Server Operators
+- Rights: ReadAndExecute, Synchronize
 
 [!] Admins found with logon scripts
 - User: LDAP://CN=Administrator,CN=Users,DC=eureka,DC=local
