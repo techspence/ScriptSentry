@@ -4,6 +4,9 @@
 ScriptSentry finds misconfigured and dangerous logon scripts.
 
 ### Additional Planned Features
+- [ ] Write a blog post about this tool/why I made it
+- [ ] Create an official release
+- [ ] Publish to PSGallery
 - [ ] Multi domain/forest support
 - [ ] Make output an object
 - [ ] Additional regex to search for other dangerous stuff in logon scripts
