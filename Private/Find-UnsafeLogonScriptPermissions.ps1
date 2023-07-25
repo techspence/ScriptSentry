@@ -5,8 +5,7 @@ function Find-UnsafeLogonScriptPermissions {
         [array]$LogonScripts
     )
 
-    $UnsafeRights = 'FullControl|Modify|Write'
-    $DomainAdmins = (Get-ADGroupMember 'Domain Admins').SamAccountName
+    $DomainAdmins = Get-DomainAdmins
     $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator'
     $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
     foreach ($script in $LogonScripts){

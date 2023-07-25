@@ -4,14 +4,10 @@ function Invoke-ScriptSentry {
     ScriptSentry finds misconfigured and dangerous logon scripts.
 
     .DESCRIPTION
-    ScriptSentry uses the Active Directory (AD) Powershell (PS) module to identify misconfigured 
-    and dangerous logon scripts.
-
-    .COMPONENT
-    ScriptSentry requires the AD PS module to be installed in the scope of the Current User.
-    If ScriptSentry does not identify the AD PS module as installed, it will attempt to
-    install the module. If module installation does not complete successfully,
-    ScriptSentry will fail.
+    ScriptSentry searches the NETLOGON share to 
+        1) identify plaintext credentials in logon scripts
+        2) identify admins that have logon script set 
+        3) identify scripts and shares that may have dangerous permissions
 
     .EXAMPLE
     Invoke-ScriptSentry
@@ -19,17 +15,17 @@ function Invoke-ScriptSentry {
     .EXAMPLE
     Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
 
+    .EXAMPLE
+    ScriptSentry.ps1
+
     #>
     [CmdletBinding()]
     Param()
 
     Get-Art -Version '0.1'
 
-    # Get a list of domains
-    $Targets = Get-DomainNetLogon
-
     # Get a list of all logon scripts
-    $LogonScripts = Get-LogonScripts -Domain $Targets
+    $LogonScripts = Get-LogonScripts
     
     # Find logon scripts that contain unc paths (e.g. \\srv01\fileshare1)
     $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts

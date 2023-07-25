@@ -6,7 +6,7 @@ function Find-UnsafeUNCPermissions {
     )
 
     $UnsafeRights = 'FullControl|Modify|Write'
-    $DomainAdmins = (Get-ADGroupMember 'Domain Admins').SamAccountName
+    $DomainAdmins = $DomainAdmins = Get-DomainAdmins
     $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator'
     $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
     foreach ($script in $UNCScripts){

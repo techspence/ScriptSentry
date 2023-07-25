@@ -1,35 +1,32 @@
-﻿<#
-.SYNOPSIS
-ScriptSentry finds misconfigured and dangerous logon scripts.
-
-.DESCRIPTION
-ScriptSentry uses the Active Directory (AD) Powershell (PS) module to identify misconfigured 
-and dangerous logon scripts.
-
-.COMPONENT
-ScriptSentry requires the AD PS module to be installed in the scope of the Current User.
-If ScriptSentry does not identify the AD PS module as installed, it will attempt to
-install the module. If module installation does not complete successfully,
-ScriptSentry will fail.
-
-.EXAMPLE
-Invoke-ScriptSentry
-
-.EXAMPLE
-Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
-
-#>
-[CmdletBinding()]
-Param()
-
-function Find-AdminLogonScripts {
+﻿function Find-AdminLogonScripts {
     $AdminGroups = "Domain Admins|Enterprise Admins|Administrators"
-    $AdminLogonScripts = Get-ADUser -Filter { Enabled -eq $true } -Properties samaccountname, scriptPath, memberOf `
-    | Where-Object { $null -ne $_.scriptPath -and $_.MemberOf -match $AdminGroups }         
+    # $AdminLogonScripts = Get-ADUser -Filter {Enabled -eq $true} -Properties samaccountname,scriptPath,memberOf | Where-Object {$null -ne $_.scriptPath -and $_.MemberOf -match $AdminGroups}
+    
+    # Enabled user accounts
+    $ldapFilter = "(&(objectCategory=User)(objectClass=person)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))"
+
+    # Admin groups to match on
+    $AdminGroups = "Domain Admins|Enterprise Admins|Administrators"
+
+    # Create a new ADSI searcher object
+    $searcher = [adsisearcher]$ldapFilter
+
+    # Specify the properties to retrieve
+    $searcher.PropertiesToLoad.Add("samaccountname") | Out-Null
+    $searcher.PropertiesToLoad.Add("scriptPath") | Out-Null
+
+    # Execute the search
+    $results = $searcher.FindAll()
+
+    # Filter the results based on scriptPath and memberOf properties
+    $AdminLogonScripts = $results | Where-Object { $_.Properties["scriptPath"] -ne $null -and ($adminGroups -match $AdminGroups) }
+
     Write-Output "`n[!] Admins found with logon scripts"
-    Write-Output "- User: $($AdminLogonScripts.DistinguishedName)"
-    Write-Output "- logonscript: $($AdminLogonScripts.scriptPath)"
-    Write-Output ""              
+    $AdminLogonScripts | ForEach-Object {
+        Write-Output "- User: $($_.Path)"
+        Write-Output "- logonscript: $($_.Properties.scriptpath)"
+        Write-Output ""    
+    }   
 }
 function Find-LogonScriptCredentials {
     [CmdletBinding()]
@@ -74,8 +71,7 @@ function Find-UnsafeLogonScriptPermissions {
         [array]$LogonScripts
     )
 
-    $UnsafeRights = 'FullControl|Modify|Write'
-    $DomainAdmins = (Get-ADGroupMember 'Domain Admins').SamAccountName
+    $DomainAdmins = Get-DomainAdmins
     $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator'
     $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
     foreach ($script in $LogonScripts) {
@@ -103,7 +99,7 @@ function Find-UnsafeUNCPermissions {
     )
 
     $UnsafeRights = 'FullControl|Modify|Write'
-    $DomainAdmins = (Get-ADGroupMember 'Domain Admins').SamAccountName
+    $DomainAdmins = $DomainAdmins = Get-DomainAdmins
     $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator'
     $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
     foreach ($script in $UNCScripts) {
@@ -125,49 +121,55 @@ function Find-UnsafeUNCPermissions {
 }
 function Get-Art($Version) {
     "
-_______  _______  _______ _________ _______ _________ _______  _______  _       _________ _______          
+ _______  _______  _______ _________ _______ _________ _______  _______  _       _________ _______          
 (  ____ \(  ____ \(  ____ )\__   __/(  ____ )\__   __/(  ____ \(  ____ \( (    /|\__   __/(  ____ )|\     /|
 | (    \/| (    \/| (    )|   ) (   | (    )|   ) (   | (    \/| (    \/|  \  ( |   ) (   | (    )|( \   / )
 | (_____ | |      | (____)|   | |   | (____)|   | |   | (_____ | (__    |   \ | |   | |   | (____)| \ (_) / 
 (_____  )| |      |     __)   | |   |  _____)   | |   (_____  )|  __)   | (\ \) |   | |   |     __)  \   /  
-    ) || |      | (\ (      | |   | (         | |         ) || (      | | \   |   | |   | (\ (      ) (   
+      ) || |      | (\ (      | |   | (         | |         ) || (      | | \   |   | |   | (\ (      ) (   
 /\____) || (____/\| ) \ \_____) (___| )         | |   /\____) || (____/\| )  \  |   | |   | ) \ \__   | |   
 \_______)(_______/|/   \__/\_______/|/          )_(   \_______)(_______/|/    )_)   )_(   |/   \__/   \_/   
-                            by: Spencer Alessi @techspence                                                                 
-                                        v$Version                                           
+                              by: Spencer Alessi @techspence                                                                 
+                                          v$Version                                           
 
 "
 }
-function Get-DomainNetlogon {
+function Get-DomainAdmins {
     [CmdletBinding()]
-    param (
-        [string]$Forest,
-        [System.Management.Automation.PSCredential]$Credential
-    )
+    param()
 
-    if ($Forest) {
-        $Targets = $Forest
+    $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
+
+    # Set the distinguished name of the "Domain Admins" group (update this with the correct DN)
+    $domainAdminsGroupDN = "CN=Domain Admins,CN=Users,DC=$($($currentDomain.Name).split('.')[0]),DC=$($($currentDomain.Name).split('.')[1])"
+
+    # Create a new ADSI searcher object for the "Domain Admins" group
+    $searcher = [adsisearcher]"(distinguishedName=$domainAdminsGroupDN)"
+
+    # Specify the property to retrieve (samaccountname of members)
+    $searcher.PropertiesToLoad.Add("member") | Out-Null
+
+    # Execute the search
+    $result = $searcher.FindOne()
+
+    $DomainAdmins = @()
+    $members = $result.Properties["member"]
+    foreach ($member in $members) {
+        $user = [adsi]"LDAP://$member"
+        $DomainAdmins += $user.sAMAccountName
     }
-    elseif ($InputPath) {
-        $Domains = Get-Content $InputPath
-    }
-    else {
-        if ($Credential) {
-            $Targets = (Get-ADForest -Credential $Credential).Name
-        }
-        else {
-            $Targets = (Get-ADForest).Name
-        }
-    }
-    return $Targets
+
+    return $DomainAdmins
 }
 function Get-LogonScripts {
     [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [array]$Domain
-    )
-    $SysvolScripts = '\\' + (Get-ADDomain).DNSRoot + '\sysvol\' + (Get-ADDomain).DNSRoot + '\scripts'
+    param()
+
+    # Get the current domain name from the environment
+    $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
+
+    # $SysvolScripts = '\\' + (Get-ADDomain).DNSRoot + '\sysvol\' + (Get-ADDomain).DNSRoot + '\scripts'
+    $SysvolScripts = "\\$($currentDomain.Name)\sysvol\$($currentDomain.Name)\scripts"
     $ExtensionList = '.bat|.vbs|.ps1|.cmd'
     $LogonScripts = Get-ChildItem -Path $SysvolScripts -Recurse | Where-Object { $_.Extension -match $ExtensionList }
     Write-Verbose "[+] Logon scripts:"
@@ -176,41 +178,47 @@ function Get-LogonScripts {
     }
     return $LogonScripts
 }
-function Get-Prerequisites {
-    # Check if ActiveDirectory PowerShell module is available, and attempt to install if not found
-    if (-not(Get-Module -Name 'ActiveDirectory' -ListAvailable)) {
-        $OS = (Get-CimInstance -ClassName Win32_OperatingSystem).ProductType
-        # 1 - workstation, 2 - domain controller, 3 - non-dc server
-        if ($OS -gt 1) {
-            # Attempt to install ActiveDirectory PowerShell module for Windows Server OSes, works with Windows Server 2012 R2 through Windows Server 2022
-            Install-WindowsFeature -Name RSAT-AD-PowerShell
-        }
-        else {
-            # Attempt to install ActiveDirectory PowerShell module for Windows Desktop OSes
-            Add-WindowsCapability -Name Rsat.ActiveDirectory.DS-LDS.Tools~~~~0.0.1.0 -Online
-        }
-    }
+function Invoke-ScriptSentry {
+    <#
+    .SYNOPSIS
+    ScriptSentry finds misconfigured and dangerous logon scripts.
+
+    .DESCRIPTION
+    ScriptSentry searches the NETLOGON share to 
+        1) identify plaintext credentials in logon scripts
+        2) identify admins that have logon script set 
+        3) identify scripts and shares that may have dangerous permissions
+
+    .EXAMPLE
+    Invoke-ScriptSentry
+
+    .EXAMPLE
+    Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
+
+    .EXAMPLE
+    ScriptSentry.ps1
+
+    #>
+    [CmdletBinding()]
+    Param()
+
+    Get-Art -Version '0.1'
+
+    # Get a list of all logon scripts
+    $LogonScripts = Get-LogonScripts
+    
+    # Find logon scripts that contain unc paths (e.g. \\srv01\fileshare1)
+    $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
+
+    # Find unsafe permissions for unc paths found in logon scripts
+    Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
+
+    # Find unsafe permissions on logon scripts
+    Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
+
+    # Find admins that have logon scripts assigned
+    Find-AdminLogonScripts
+
+    # Find credentials in logon scripts
+    Find-LogonScriptCredentials -LogonScripts $LogonScripts
 }
-
-Get-Art -Version '0.1'
-
-# Get a list of domains
-$Targets = Get-DomainNetLogon
-
-# Get a list of all logon scripts
-$LogonScripts = Get-LogonScripts -Domain $Targets
-
-# Find logon scripts that contain unc paths (e.g. \\srv01\fileshare1)
-$UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
-
-# Find unsafe permissions for unc paths found in logon scripts
-Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
-
-# Find unsafe permissions on logon scripts
-Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
-
-# Find admins that have logon scripts assigned
-Find-AdminLogonScripts
-
-# Find credentials in logon scripts
-Find-LogonScriptCredentials -LogonScripts $LogonScripts
