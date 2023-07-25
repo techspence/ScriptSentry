@@ -38,13 +38,13 @@ Build-Module -ModuleName 'ScriptSentry' {
         # 'ServerManager'
         # those modules are builtin in PowerShell so no need to install them
         # could as well be ignored with New-ConfigurationModuleSkip
-        'Microsoft.PowerShell.Utility'
-        'Microsoft.PowerShell.LocalAccounts',
+        # 'Microsoft.PowerShell.Utility'
+        # 'Microsoft.PowerShell.LocalAccounts',
         'Microsoft.PowerShell.Utility'
         'Microsoft.PowerShell.Management'
         'Microsoft.PowerShell.Security'
-        'CimCmdlets'
-        'Dism'
+        # 'CimCmdlets'
+        # 'Dism'
     )
     foreach ($Module in $ExternalModules) {
         New-ConfigurationModule -Type ExternalModule -Name $Module
