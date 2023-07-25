@@ -6,12 +6,13 @@ function Find-UNCScripts {
     )
 
     $UNCFiles = @()
-    foreach ($script in $LogonScripts) {
-        $UNCFiles += Get-Content $script.FullName | Select-String -Pattern '\\.*\.\w+' | foreach {$_.Matches.Value}
+    [Array] $UNCFiles = foreach ($script in $LogonScripts) {
+        Get-Content $script.FullName | Select-String -Pattern '\\.*\.\w+' | ForEach-Object { $_.Matches.Value }
     }
     Write-Verbose "[+] UNC scripts:"
     $UNCFiles | ForEach-Object {
         Write-Verbose -Message "$_"
     }
-    return $UNCFiles
+    
+    $UNCFiles
 }

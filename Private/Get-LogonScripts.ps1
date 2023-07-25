@@ -13,5 +13,5 @@ function Get-LogonScripts {
     $LogonScripts | ForEach-Object {
         Write-Verbose -Message "$($_.fullName)"
     }
-    return $LogonScripts
+    $LogonScripts
 }

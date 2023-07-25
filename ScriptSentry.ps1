@@ -44,11 +44,11 @@ function Find-AdminLogonScripts {
     # Filter the results based on scriptPath and memberOf properties
     $AdminLogonScripts = $results | Where-Object { $_.Properties["scriptPath"] -ne $null -and ($adminGroups -match $AdminGroups) }
 
-    Write-Output "`n[!] Admins found with logon scripts"
+    "`n[!] Admins found with logon scripts"
     $AdminLogonScripts | ForEach-Object {
-        Write-Output "- User: $($_.Path)"
-        Write-Output "- logonscript: $($_.Properties.scriptpath)"
-        Write-Output ""    
+        "- User: $($_.Path)"
+        "- logonscript: $($_.Properties.scriptpath)"
+        ""    
     }   
 }
 function Find-LogonScriptCredentials {
@@ -61,12 +61,12 @@ function Find-LogonScriptCredentials {
         Write-Verbose -Message "Checking $($Script.FullName) for credentials.."
         $Credentials = Get-Content -Path $script.FullName | Select-String -Pattern "/user:" -AllMatches
         if ($Credentials) {
-            Write-Output "`n[!] CREDENTIALS FOUND!"
-            Write-Output "- File: $($script.FullName)"
+            "`n[!] CREDENTIALS FOUND!"
+            "- File: $($script.FullName)"
             $Credentials | ForEach-Object {
-                Write-Output "`t- Credential: $_"
+                "`t- Credential: $_"
             }
-            Write-Output ""
+            ""
         }
     } 
 }
@@ -78,14 +78,15 @@ function Find-UNCScripts {
     )
 
     $UNCFiles = @()
-    foreach ($script in $LogonScripts) {
-        $UNCFiles += Get-Content $script.FullName | Select-String -Pattern '\\.*\.\w+' | foreach { $_.Matches.Value }
+    [Array] $UNCFiles = foreach ($script in $LogonScripts) {
+        Get-Content $script.FullName | Select-String -Pattern '\\.*\.\w+' | ForEach-Object { $_.Matches.Value }
     }
     Write-Verbose "[+] UNC scripts:"
     $UNCFiles | ForEach-Object {
         Write-Verbose -Message "$_"
     }
-    return $UNCFiles
+    
+    $UNCFiles
 }
 function Find-UnsafeLogonScriptPermissions {
     [CmdletBinding()]
@@ -105,11 +106,11 @@ function Find-UnsafeLogonScriptPermissions {
                     -and $entry.AccessControlType -eq "Allow" `
                     -and $entry.IdentityReference -notmatch $SafeUsers
             ) {
-                Write-Output "`n[!] UNSAFE ACL FOUND!"
-                Write-Output "- File: $($script.FullName)"
-                Write-Output "- User: $($entry.IdentityReference.Value)"
-                Write-Output "- Rights: $($entry.FileSystemRights)"
-                Write-Output ""
+                "`n[!] UNSAFE ACL FOUND!"
+                "- File: $($script.FullName)"
+                "- User: $($entry.IdentityReference.Value)"
+                "- Rights: $($entry.FileSystemRights)"
+                ""
             }
         }
     }
@@ -133,11 +134,11 @@ function Find-UnsafeUNCPermissions {
                     -and $entry.AccessControlType -eq "Allow" `
                     -and $entry.IdentityReference -notmatch $SafeUsers
             ) {
-                Write-Output "`n[!] UNSAFE ACL FOUND!"
-                Write-Output "- File: $script"
-                Write-Output "- User: $($entry.IdentityReference.Value)"
-                Write-Output "- Rights: $($entry.FileSystemRights)"
-                Write-Output ""
+                "`n[!] UNSAFE ACL FOUND!"
+                "- File: $script"
+                "- User: $($entry.IdentityReference.Value)"
+                "- Rights: $($entry.FileSystemRights)"
+                ""
             }
         }
     }
@@ -182,7 +183,7 @@ function Get-DomainAdmins {
         $DomainAdmins += $user.sAMAccountName
     }
 
-    return $DomainAdmins
+    $DomainAdmins
 }
 function Get-LogonScripts {
     [CmdletBinding()]
@@ -199,7 +200,7 @@ function Get-LogonScripts {
     $LogonScripts | ForEach-Object {
         Write-Verbose -Message "$($_.fullName)"
     }
-    return $LogonScripts
+    $LogonScripts
 }
 
 Get-Art -Version '0.1'

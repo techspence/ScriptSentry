@@ -23,5 +23,5 @@ function Get-DomainAdmins {
         $DomainAdmins += $user.sAMAccountName
     }
 
-    return $DomainAdmins
+    $DomainAdmins
 }

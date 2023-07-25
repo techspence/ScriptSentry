@@ -17,11 +17,11 @@ function Find-UnsafeUNCPermissions {
                 -and $entry.AccessControlType -eq "Allow" `
                 -and $entry.IdentityReference -notmatch $SafeUsers
                 ){
-                    Write-Output "`n[!] UNSAFE ACL FOUND!"
-                    Write-Output "- File: $script"
-                    Write-Output "- User: $($entry.IdentityReference.Value)"
-                    Write-Output "- Rights: $($entry.FileSystemRights)"
-                    Write-Output ""
+                    "`n[!] UNSAFE ACL FOUND!"
+                    "- File: $script"
+                    "- User: $($entry.IdentityReference.Value)"
+                    "- Rights: $($entry.FileSystemRights)"
+                    ""
             }
         }
     }

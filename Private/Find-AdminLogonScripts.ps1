@@ -21,10 +21,10 @@ function Find-AdminLogonScripts {
     # Filter the results based on scriptPath and memberOf properties
     $AdminLogonScripts = $results | Where-Object { $_.Properties["scriptPath"] -ne $null -and ($adminGroups -match $AdminGroups) }
 
-    Write-Output "`n[!] Admins found with logon scripts"
+     "`n[!] Admins found with logon scripts"
     $AdminLogonScripts | Foreach-object {
-        Write-Output "- User: $($_.Path)"
-        Write-Output "- logonscript: $($_.Properties.scriptpath)"
-        Write-Output ""    
+        "- User: $($_.Path)"
+        "- logonscript: $($_.Properties.scriptpath)"
+        ""    
     }   
 }
