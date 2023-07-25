@@ -3,6 +3,11 @@
 
 ScriptSentry finds misconfigured and dangerous logon scripts.
 
+### Additional Planned Features
+- [ ] Multi domain/forest support
+- [ ] Make output an object
+- [ ] Additional regex to search for other dangerous stuff in logon scripts
+
 ### Installing & Running
 ```PowerShell
 # Clone, import and run, display results on the console
