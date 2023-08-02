@@ -88,6 +88,27 @@ function Find-UNCScripts {
     
     $UNCFiles
 }
+function Find-MappedDrives {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$LogonScripts
+    )
+
+    $Shares = @()
+    [Array] $Shares = foreach ($script in $LogonScripts) {
+        # Kind of messy, but it works? Could not get the regex 100% perfect
+        $temp = Get-Content $script.FullName | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value } 
+        $temp | ForEach-Object {
+            if ($_ -match '\.') {
+                (Get-Item $_).Directory.FullName
+            } else {
+                $_
+            }
+        }
+    }
+    $Shares | Sort-Object -Unique
+}
 function Find-UnsafeLogonScriptPermissions {
     [CmdletBinding()]
     param(
@@ -208,11 +229,17 @@ Get-Art -Version '0.1'
 # Get a list of all logon scripts
 $LogonScripts = Get-LogonScripts
 
-# Find logon scripts that contain unc paths (e.g. \\srv01\fileshare1)
+# Find logon scripts (.bat, .vbs, .cmd, .ps1) that contain unc paths (e.g. \\srv01\fileshare1)
 $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
 
-# Find unsafe permissions for unc paths found in logon scripts
+# Find mapped drives (e.g. \\srv01\fileshare1, \\srv02\fileshare2\accounting)
+$MappedDrives = Find-MappedDrives -LogonScripts $LogonScripts
+
+# Find unsafe permissions for unc files found in logon scripts
 Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
+
+# Find unsafe permissions for unc paths found in logon scripts
+Find-UnsafeUNCPermissions -UNCScripts $MappedDrives
 
 # Find unsafe permissions on logon scripts
 Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts

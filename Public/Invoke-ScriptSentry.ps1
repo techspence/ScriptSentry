@@ -27,11 +27,17 @@ function Invoke-ScriptSentry {
     # Get a list of all logon scripts
     $LogonScripts = Get-LogonScripts
     
-    # Find logon scripts that contain unc paths (e.g. \\srv01\fileshare1)
+    # Find logon scripts (.bat, .vbs, .cmd, .ps1) that contain unc paths (e.g. \\srv01\fileshare1)
     $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
 
-    # Find unsafe permissions for unc paths found in logon scripts
+    # Find mapped drives (e.g. \\srv01\fileshare1, \\srv02\fileshare2\accounting)
+    $MappedDrives = Find-MappedDrives -LogonScripts $LogonScripts
+
+    # Find unsafe permissions for unc files found in logon scripts
     Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
+
+    # Find unsafe permissions for unc paths found in logon scripts
+    Find-UnsafeUNCPermissions -UNCScripts $MappedDrives
 
     # Find unsafe permissions on logon scripts
     Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
