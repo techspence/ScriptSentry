@@ -22,7 +22,7 @@ function Invoke-ScriptSentry {
     [CmdletBinding()]
     Param()
 
-    Get-Art -Version '0.2_dev'
+    Get-Art -Version '0.2'
 
     # Get a list of all logon scripts
     $LogonScripts = Get-LogonScripts
@@ -34,18 +34,24 @@ function Invoke-ScriptSentry {
     $MappedDrives = Find-MappedDrives -LogonScripts $LogonScripts
 
     # Find unsafe permissions for unc files found in logon scripts
-    Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
+    $UnsafeUNCPermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
 
     # Find unsafe permissions for unc paths found in logon scripts
-    Find-UnsafeUNCPermissions -UNCScripts $MappedDrives
+    $UnsafeMappedDrives = Find-UnsafeUNCPermissions -UNCScripts $MappedDrives
 
     # Find unsafe permissions on logon scripts
-    Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
+    $UnsafeLogonScripts = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
 
     # Find admins that have logon scripts assigned
-    Find-AdminLogonScripts
+    $AdminLogonScripts = Find-AdminLogonScripts
 
     # Find credentials in logon scripts
-    Find-LogonScriptCredentials -LogonScripts $LogonScripts
+    $Credentials = Find-LogonScriptCredentials -LogonScripts $LogonScripts
 
+    # Show all results
+    Show-Results $UnsafeMappedDrives
+    Show-Results $UnsafeLogonScripts
+    Show-Results $UnsafeUNCPermissions
+    Show-Results $AdminLogonScripts
+    Show-Results $Credentials
 }

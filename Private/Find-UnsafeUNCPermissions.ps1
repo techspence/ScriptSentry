@@ -17,11 +17,18 @@ function Find-UnsafeUNCPermissions {
                 -and $entry.AccessControlType -eq "Allow" `
                 -and $entry.IdentityReference -notmatch $SafeUsers
                 ){
-                    "`n[!] UNSAFE ACL FOUND!"
-                    "- File: $script"
-                    "- User: $($entry.IdentityReference.Value)"
-                    "- Rights: $($entry.FileSystemRights)"
-                    ""
+                if ($script -match '\.') {
+                    $Type = 'UnsafeUNCFilePermission'
+                } else {
+                    $Type = 'UnsafeUNCFolderPermission'
+                }
+                $Results = [ordered] @{
+                    Type = $Type
+                    File = $script
+                    User = $entry.IdentityReference.Value
+                    Rights = $entry.FileSystemRights
+                }
+                [pscustomobject] $Results
             }
         }
     }

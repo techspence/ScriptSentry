@@ -21,7 +21,53 @@ ScriptSentry.ps1
 [CmdletBinding()]
 Param()
 
+function Get-DomainAdmins {
+    [CmdletBinding()]
+    param()
+
+    $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
+
+    # Set the distinguished name of the "Domain Admins" group (update this with the correct DN)
+    $domainAdminsGroupDN = "CN=Domain Admins,CN=Users,DC=$($($currentDomain.Name).split('.')[0]),DC=$($($currentDomain.Name).split('.')[1])"
+
+    # Create a new ADSI searcher object for the "Domain Admins" group
+    $searcher = [adsisearcher]"(distinguishedName=$domainAdminsGroupDN)"
+
+    # Specify the property to retrieve (samaccountname of members)
+    $searcher.PropertiesToLoad.Add("member") | Out-Null
+
+    # Execute the search
+    $result = $searcher.FindOne()
+
+    $DomainAdmins = @()
+    $members = $result.Properties["member"]
+    foreach ($member in $members) {
+        $user = [adsi]"LDAP://$member"
+        $DomainAdmins += $user.sAMAccountName
+    }
+
+    $DomainAdmins
+}
+function Get-LogonScripts {
+    [CmdletBinding()]
+    param()
+
+    # Get the current domain name from the environment
+    $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
+
+    # $SysvolScripts = '\\' + (Get-ADDomain).DNSRoot + '\sysvol\' + (Get-ADDomain).DNSRoot + '\scripts'
+    $SysvolScripts = "\\$($currentDomain.Name)\sysvol\$($currentDomain.Name)\scripts"
+    $ExtensionList = '.bat|.vbs|.ps1|.cmd'
+    $LogonScripts = Get-ChildItem -Path $SysvolScripts -Recurse | Where-Object { $_.Extension -match $ExtensionList }
+    Write-Verbose "[+] Logon scripts:"
+    $LogonScripts | ForEach-Object {
+        Write-Verbose -Message "$($_.fullName)"
+    }
+    $LogonScripts
+}
 function Find-AdminLogonScripts {
+    Write-Verbose -Message "Checking for admins who have logon scripts set.."
+
     $AdminGroups = "Domain Admins|Enterprise Admins|Administrators"
     # $AdminLogonScripts = Get-ADUser -Filter {Enabled -eq $true} -Properties samaccountname,scriptPath,memberOf | Where-Object {$null -ne $_.scriptPath -and $_.MemberOf -match $AdminGroups}
     
@@ -35,8 +81,8 @@ function Find-AdminLogonScripts {
     $searcher = [adsisearcher]$ldapFilter
 
     # Specify the properties to retrieve
-    $searcher.PropertiesToLoad.Add("samaccountname") | Out-Null
-    $searcher.PropertiesToLoad.Add("scriptPath") | Out-Null
+    $searcher.PropertiesToLoad.Add("samaccountname") | out-null
+    $searcher.PropertiesToLoad.Add("scriptPath") | out-null
 
     # Execute the search
     $results = $searcher.FindAll()
@@ -44,12 +90,15 @@ function Find-AdminLogonScripts {
     # Filter the results based on scriptPath and memberOf properties
     $AdminLogonScripts = $results | Where-Object { $_.Properties["scriptPath"] -ne $null -and ($adminGroups -match $AdminGroups) }
 
-    "`n[!] Admins found with logon scripts"
-    $AdminLogonScripts | ForEach-Object {
-        "- User: $($_.Path)"
-        "- logonscript: $($_.Properties.scriptpath)"
-        ""    
-    }   
+    # "`n[!] Admins found with logon scripts"
+    $AdminLogonScripts | Foreach-object {
+        $Results = [ordered] @{
+            Type = 'AdminLogonScript'
+            User = $_.Path
+            LogonScript = $($_.Properties.scriptpath)
+        }
+        [pscustomobject] $Results
+    }
 }
 function Find-LogonScriptCredentials {
     [CmdletBinding()]
@@ -61,14 +110,17 @@ function Find-LogonScriptCredentials {
         Write-Verbose -Message "Checking $($Script.FullName) for credentials.."
         $Credentials = Get-Content -Path $script.FullName | Select-String -Pattern "/user:" -AllMatches
         if ($Credentials) {
-            "`n[!] CREDENTIALS FOUND!"
-            "- File: $($script.FullName)"
+            # "`n[!] CREDENTIALS FOUND!"
             $Credentials | ForEach-Object {
-                "`t- Credential: $_"
+                $Results = [ordered] @{
+                    Type = 'Credentials'
+                    File = $script.FullName
+                    Credential = $_
+                }
+                [pscustomobject] $Results
             }
-            ""
         }
-    } 
+    }
 }
 function Find-UNCScripts {
     [CmdletBinding()]
@@ -119,19 +171,21 @@ function Find-UnsafeLogonScriptPermissions {
     $DomainAdmins = Get-DomainAdmins
     $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator'
     $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
-    foreach ($script in $LogonScripts) {
+    foreach ($script in $LogonScripts){
         Write-Verbose -Message "Checking $($script.FullName) for unsafe permissions.."
         $ACL = (Get-Acl $script.FullName).Access
         foreach ($entry in $ACL) {
             if ($entry.FileSystemRights -match $UnsafeRights `
-                    -and $entry.AccessControlType -eq "Allow" `
-                    -and $entry.IdentityReference -notmatch $SafeUsers
-            ) {
-                "`n[!] UNSAFE ACL FOUND!"
-                "- File: $($script.FullName)"
-                "- User: $($entry.IdentityReference.Value)"
-                "- Rights: $($entry.FileSystemRights)"
-                ""
+                -and $entry.AccessControlType -eq "Allow" `
+                -and $entry.IdentityReference -notmatch $SafeUsers
+                ){
+                $Results = [ordered] @{
+                    Type = 'UnsafePermission'
+                    File = $script.FullName
+                    User = $entry.IdentityReference.Value
+                    Rights = $entry.FileSystemRights
+                }
+                [pscustomobject] $Results
             }
         }
     }
@@ -147,25 +201,54 @@ function Find-UnsafeUNCPermissions {
     $DomainAdmins = $DomainAdmins = Get-DomainAdmins
     $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator'
     $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
-    foreach ($script in $UNCScripts) {
+    foreach ($script in $UNCScripts){
         Write-Verbose -Message "Checking $script for unsafe permissions.."
         $ACL = (Get-Acl $script).Access
         foreach ($entry in $ACL) {
             if ($entry.FileSystemRights -match $UnsafeRights `
-                    -and $entry.AccessControlType -eq "Allow" `
-                    -and $entry.IdentityReference -notmatch $SafeUsers
-            ) {
-                "`n[!] UNSAFE ACL FOUND!"
-                "- File: $script"
-                "- User: $($entry.IdentityReference.Value)"
-                "- Rights: $($entry.FileSystemRights)"
-                ""
+                -and $entry.AccessControlType -eq "Allow" `
+                -and $entry.IdentityReference -notmatch $SafeUsers
+                ){
+                if ($script -match '\.') {
+                    $Type = 'UnsafeUNCFilePermission'
+                } else {
+                    $Type = 'UnsafeUNCFolderPermission'
+                }
+                $Results = [ordered] @{
+                    Type = $Type
+                    File = $script
+                    User = $entry.IdentityReference.Value
+                    Rights = $entry.FileSystemRights
+                }
+                [pscustomobject] $Results
             }
         }
     }
 }
+function Show-Results {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [array]$Results
+    )
+
+    $IssueTable = @{
+        Credentials                 = 'Plaintext credentials'
+        AdminLogonScript            = 'Admins with logonscripts'
+        UnsafeUNCFilePermission     = 'Unsafe UNC file permissions'
+        UnsafeUNCFolderPermission   = 'Unsafe UNC folder permissions'
+        UnsafeLogonScriptPermission = 'Unsafe logon script permissions'
+    }
+
+    if ($null -ne $Results) {
+        $UniqueResults = $Results.Type | Sort-Object -Unique
+        Write-Host "########## $($IssueTable[$UniqueResults]) ##########"
+        # $Results | Format-List
+        $Results | Format-Table -Wrap
+    }
+}
 function Get-Art($Version) {
-    "
+"
  _______  _______  _______ _________ _______ _________ _______  _______  _       _________ _______          
 (  ____ \(  ____ \(  ____ )\__   __/(  ____ )\__   __/(  ____ \(  ____ \( (    /|\__   __/(  ____ )|\     /|
 | (    \/| (    \/| (    )|   ) (   | (    )|   ) (   | (    \/| (    \/|  \  ( |   ) (   | (    )|( \   / )
@@ -179,52 +262,8 @@ function Get-Art($Version) {
 
 "
 }
-function Get-DomainAdmins {
-    [CmdletBinding()]
-    param()
 
-    $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
-
-    # Set the distinguished name of the "Domain Admins" group (update this with the correct DN)
-    $domainAdminsGroupDN = "CN=Domain Admins,CN=Users,DC=$($($currentDomain.Name).split('.')[0]),DC=$($($currentDomain.Name).split('.')[1])"
-
-    # Create a new ADSI searcher object for the "Domain Admins" group
-    $searcher = [adsisearcher]"(distinguishedName=$domainAdminsGroupDN)"
-
-    # Specify the property to retrieve (samaccountname of members)
-    $searcher.PropertiesToLoad.Add("member") | Out-Null
-
-    # Execute the search
-    $result = $searcher.FindOne()
-
-    $DomainAdmins = @()
-    $members = $result.Properties["member"]
-    foreach ($member in $members) {
-        $user = [adsi]"LDAP://$member"
-        $DomainAdmins += $user.sAMAccountName
-    }
-
-    $DomainAdmins
-}
-function Get-LogonScripts {
-    [CmdletBinding()]
-    param()
-
-    # Get the current domain name from the environment
-    $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
-
-    # $SysvolScripts = '\\' + (Get-ADDomain).DNSRoot + '\sysvol\' + (Get-ADDomain).DNSRoot + '\scripts'
-    $SysvolScripts = "\\$($currentDomain.Name)\sysvol\$($currentDomain.Name)\scripts"
-    $ExtensionList = '.bat|.vbs|.ps1|.cmd'
-    $LogonScripts = Get-ChildItem -Path $SysvolScripts -Recurse | Where-Object { $_.Extension -match $ExtensionList }
-    Write-Verbose "[+] Logon scripts:"
-    $LogonScripts | ForEach-Object {
-        Write-Verbose -Message "$($_.fullName)"
-    }
-    $LogonScripts
-}
-
-Get-Art -Version '0.2_dev'
+Get-Art -Version '0.2'
 
 # Get a list of all logon scripts
 $LogonScripts = Get-LogonScripts
@@ -236,16 +275,23 @@ $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
 $MappedDrives = Find-MappedDrives -LogonScripts $LogonScripts
 
 # Find unsafe permissions for unc files found in logon scripts
-Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
+$UnsafeUNCPermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
 
 # Find unsafe permissions for unc paths found in logon scripts
-Find-UnsafeUNCPermissions -UNCScripts $MappedDrives
+$UnsafeMappedDrives = Find-UnsafeUNCPermissions -UNCScripts $MappedDrives
 
 # Find unsafe permissions on logon scripts
-Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
+$UnsafeLogonScripts = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
 
 # Find admins that have logon scripts assigned
-Find-AdminLogonScripts
+$AdminLogonScripts = Find-AdminLogonScripts
 
 # Find credentials in logon scripts
-Find-LogonScriptCredentials -LogonScripts $LogonScripts
+$Credentials = Find-LogonScriptCredentials -LogonScripts $LogonScripts
+
+# Show all results
+Show-Results $UnsafeMappedDrives
+Show-Results $UnsafeLogonScripts
+Show-Results $UnsafeUNCPermissions
+Show-Results $AdminLogonScripts
+Show-Results $Credentials

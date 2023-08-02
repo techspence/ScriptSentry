@@ -7,7 +7,7 @@
     Description          = 'ScriptSentry finds misconfigured and dangerous logon scripts.'
     FunctionsToExport    = @('*')
     GUID                 = 'e1cd2b55-3b4f-41bd-a168-40db41e34349'
-    ModuleVersion        = '0.2_dev'
+    ModuleVersion        = '0.2'
     PowerShellVersion    = '5.1'
     PrivateData          = @{
         PSData = @{

@@ -16,11 +16,13 @@ function Find-UnsafeLogonScriptPermissions {
                 -and $entry.AccessControlType -eq "Allow" `
                 -and $entry.IdentityReference -notmatch $SafeUsers
                 ){
-                    "`n[!] UNSAFE ACL FOUND!"
-                    "- File: $($script.FullName)"
-                    "- User: $($entry.IdentityReference.Value)"
-                    "- Rights: $($entry.FileSystemRights)"
-                    ""
+                $Results = [ordered] @{
+                    Type = 'UnsafeLogonScriptPermission'
+                    File = $script.FullName
+                    User = $entry.IdentityReference.Value
+                    Rights = $entry.FileSystemRights
+                }
+                [pscustomobject] $Results
             }
         }
     }
