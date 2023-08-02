@@ -4,12 +4,15 @@
 ScriptSentry finds misconfigured and dangerous logon scripts.
 
 ### Additional Planned Features
-- [ ] Write a blog post about this tool/why I made it
-- [ ] Create an official release
-- [ ] Publish to PSGallery
-- [ ] Multi domain/forest support
-- [ ] Make output an object
-- [ ] Additional regex to search for other dangerous stuff in logon scripts
+| status | Feature | Notes |
+| ------ | ------ | ------ |
+| In progress | make output an object | pushed to dev, needs testing
+| In progress | Additional regex to search for other dangerous stuff in logon scripts | Added detection for unsafe unc folder permissions |
+| ToDo | Write a blog post about this tool/why I made it | |
+| ToDo | Create an official release | |
+| ToDo | Publish to PSGallery | |
+| ToDo | Multi domain/forest support | |
+
 
 ### Installing & Running
 ```PowerShell
