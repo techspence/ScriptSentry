@@ -224,7 +224,7 @@ function Get-LogonScripts {
     $LogonScripts
 }
 
-Get-Art -Version '0.1'
+Get-Art -Version '0.2_dev'
 
 # Get a list of all logon scripts
 $LogonScripts = Get-LogonScripts
