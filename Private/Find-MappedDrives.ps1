@@ -17,5 +17,11 @@ function Find-MappedDrives {
             }
         }
     }
+
+    Write-Verbose "[+] Mapped drives:"
+    $Shares | Sort-Object -Unique | ForEach-Object {
+        Write-Verbose -Message "$_"
+    }
+
     $Shares | Sort-Object -Unique
 }

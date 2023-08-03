@@ -9,7 +9,7 @@ function Find-UnsafeLogonScriptPermissions {
     $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator'
     $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
     foreach ($script in $LogonScripts){
-        Write-Verbose -Message "Checking $($script.FullName) for unsafe permissions.."
+        # Write-Verbose -Message "Checking $($script.FullName) for unsafe permissions.."
         $ACL = (Get-Acl $script.FullName).Access
         foreach ($entry in $ACL) {
             if ($entry.FileSystemRights -match $UnsafeRights `
