@@ -102,8 +102,8 @@ Build-Module -ModuleName 'ScriptSentry' {
     # New-ConfigurationArtefact -Type Unpacked -Enable -Path "$PSScriptRoot\..\Artefacts\Unpacked"
     # New-ConfigurationArtefact -Type Packed -Enable -Path "$PSScriptRoot\..\Artefacts\Packed" -IncludeTagName
 
-    # New-ConfigurationArtefact -Type Script -Enable -Path "$PSScriptRoot\..\Script" {
-    #     Invoke-ModuleBuilder
+    # New-ConfigurationArtefact -Type Script -Enable -Path "$PSScriptRoot\..\" {
+    #      Invoke-ModuleBuilder
     # }
 
     # global options for publishing to github/psgallery
