@@ -11,7 +11,15 @@ function Find-MappedDrives {
         $temp = Get-Content $script.FullName | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value } 
         $temp | ForEach-Object {
             if ($_ -match '\.') {
-                (Get-Item $_).Directory.FullName
+                try { 
+                    $Directory = "$_"
+                    Get-Item $Directory -ErrorAction Stop
+                } catch [System.UnauthorizedAccessException] {
+                    Write-Host "$_ : You do not have access to $Directory`n"
+                }
+                catch {
+                    Write-Host "An error occurred: $($_.Exception.Message)"
+                }
             } else {
                 $_
             }

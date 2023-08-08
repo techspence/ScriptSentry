@@ -11,7 +11,14 @@ function Find-UnsafeUNCPermissions {
     $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
     foreach ($script in $UNCScripts){
         # Write-Verbose -Message "Checking $script for unsafe permissions.."
-        $ACL = (Get-Acl $script).Access
+        try{
+            $ACL = (Get-Acl $script -ErrorAction Stop).Access
+        } catch [System.UnauthorizedAccessException] {
+            Write-Host "$_ : You do not have access to $script`n"
+        }
+        catch {
+            Write-Host "An error occurred: $($_.Exception.Message)"
+        }
         foreach ($entry in $ACL) {
             if ($entry.FileSystemRights -match $UnsafeRights `
                 -and $entry.AccessControlType -eq "Allow" `
