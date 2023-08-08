@@ -16,7 +16,7 @@ Import-Module -Name PSPublishModule -Force
 Build-Module -ModuleName 'ScriptSentry' {
     # Usual defaults as per standard module
     $Manifest = [ordered] @{
-        ModuleVersion        = '0.1'
+        ModuleVersion        = '0.2'
         CompatiblePSEditions = @('Desktop', 'Core')
         GUID                 = 'e1cd2b55-3b4f-41bd-a168-40db41e34349'
         Author               = 'Spencer Alessi'
@@ -102,8 +102,8 @@ Build-Module -ModuleName 'ScriptSentry' {
     # New-ConfigurationArtefact -Type Unpacked -Enable -Path "$PSScriptRoot\..\Artefacts\Unpacked"
     # New-ConfigurationArtefact -Type Packed -Enable -Path "$PSScriptRoot\..\Artefacts\Packed" -IncludeTagName
 
-    # New-ConfigurationArtefact -Type Script -Enable -Path "$PSScriptRoot\..\Script" {
-    #     Invoke-ModuleBuilder
+    # New-ConfigurationArtefact -Type Script -Enable -Path "$PSScriptRoot\..\" {
+    #      Invoke-ModuleBuilder
     # }
 
     # global options for publishing to github/psgallery

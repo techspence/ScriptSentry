@@ -6,7 +6,7 @@ ScriptSentry finds misconfigured and dangerous logon scripts.
 ### Additional Planned Features
 | status | Feature | Notes |
 | ------ | ------ | ------ |
-| In progress | make output an object | pushed to dev, needs testing
+| Done | make output an object | pushed to dev, needs testing
 | In progress | Additional regex to search for other dangerous stuff in logon scripts | Added detection for unsafe unc folder permissions |
 | ToDo | Write a blog post about this tool/why I made it | |
 | ToDo | Create an official release | |
@@ -46,21 +46,52 @@ Invoke-ScriptSentry
 /\____) || (____/\| ) \ \_____) (___| )         | |   /\____) || (____/\| )  \  |   | |   | ) \ \__   | |
 \_______)(_______/|/   \__/\_______/|/          )_(   \_______)(_______/|/    )_)   )_(   |/   \__/   \_/
                               by: Spencer Alessi @techspence
-                                          v0.1                                
-[!] UNSAFE ACL FOUND!
-- File: \\eureka.local\sysvol\eureka.local\scripts\run.vbs
-- User: BUILTIN\Server Operators
-- Rights: ReadAndExecute, Synchronize
+                                          v0.2
 
-[!] Admins found with logon scripts
-- User: LDAP://CN=Administrator,CN=Users,DC=eureka,DC=local
-- logonscript: run.vbs
 
-- User: LDAP://CN=it admin,OU=Admins,OU=Eureka,DC=eureka,DC=local
-- logonscript: test.cmd
+########## Unsafe UNC folder permissions ##########
 
-[!] CREDENTIALS FOUND!
-- File: \\eureka.local\sysvol\eureka.local\scripts\test.cmd
-        - Credential: net use g: \\eureka-dc01\fileshare1 /user:user1 Password3355!
-        - Credential: net use h: \\eureka-dc01\fileshare1\accounting /user:userfoo Password5!
+Type                      File                                User          Rights
+----                      ----                                ----          ------
+UnsafeUNCFolderPermission \\eureka-dc01\fileshare1            Everyone FullControl
+UnsafeUNCFolderPermission \\eureka-dc01\fileshare1\accounting Everyone FullControl
+UnsafeUNCFolderPermission \\eureka-dc01\fileshare1\IT         Everyone FullControl
+
+
+########## Unsafe logon script permissions ##########
+
+Type                        File                                                   User                                                  Rights
+----                        ----                                                   ----                                                  ------
+UnsafeLogonScriptPermission \\eureka.local\sysvol\eureka.local\scripts\elevate.vbs NT AUTHORITY\Authenticated Users ReadAndExecute, Synchronize
+UnsafeLogonScriptPermission \\eureka.local\sysvol\eureka.local\scripts\elevate.vbs BUILTIN\Server Operators         ReadAndExecute, Synchronize
+UnsafeLogonScriptPermission \\eureka.local\sysvol\eureka.local\scripts\run.vbs     NT AUTHORITY\Authenticated Users ReadAndExecute, Synchronize
+UnsafeLogonScriptPermission \\eureka.local\sysvol\eureka.local\scripts\run.vbs     BUILTIN\Server Operators         ReadAndExecute, Synchronize
+UnsafeLogonScriptPermission \\eureka.local\sysvol\eureka.local\scripts\test.cmd    EUREKA\Domain Users                      Modify, Synchronize
+
+
+########## Unsafe UNC file permissions ##########
+
+Type                    File                                              User                                        Rights
+----                    ----                                              ----                                        ------
+UnsafeUNCFilePermission \\eureka-dc01\fileshare1\IT\securit360pentest.bat Everyone                               FullControl
+UnsafeUNCFilePermission \\eureka-dc01\fileshare1\run.bat                  EUREKA\testuser Write, ReadAndExecute, Synchronize
+UnsafeUNCFilePermission \\eureka-dc01\fileshare1\run.bat                  Everyone                               FullControl
+
+
+########## Admins with logonscripts ##########
+
+Type             User                                                      LogonScript
+----             ----                                                      -----------
+AdminLogonScript LDAP://CN=Administrator,CN=Users,DC=eureka,DC=local       run.vbs
+AdminLogonScript LDAP://CN=it admin,OU=Admins,OU=Eureka,DC=eureka,DC=local elevate.vbs
+
+
+########## Plaintext credentials ##########
+
+Type        File                                                   Credential
+----        ----                                                   ----------
+Credentials \\eureka.local\sysvol\eureka.local\scripts\ADCheck.ps1 $password = ConvertTo-SecureString -String "Password2468!" -AsPlainText -Force
+Credentials \\eureka.local\sysvol\eureka.local\scripts\shares.cmd  net use f: \\eureka-dc01\fileshare1\it /user:itadmin Password2468!
+Credentials \\eureka.local\sysvol\eureka.local\scripts\test.cmd    net use g: \\eureka-dc01\fileshare1 /user:user1 Password3355!
+Credentials \\eureka.local\sysvol\eureka.local\scripts\test.cmd    net use h: \\eureka-dc01\fileshare1\accounting /user:userfoo Password5!
 ```
