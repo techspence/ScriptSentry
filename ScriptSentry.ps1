@@ -192,6 +192,16 @@ function Find-MappedDrives {
 
     $Shares | Sort-Object -Unique
 }
+function Get-NetlogonSysvol {
+    [CmdletBinding()]
+    param()
+
+    $Domains = Get-Domains
+    foreach ($Domain in $Domains){
+        "\\$($Domain.Name)\NETLOGON"
+        "\\$($Domain.Name)\SYSVOL"
+    }
+}
 function Find-UnsafeLogonScriptPermissions {
     [CmdletBinding()]
     param(
@@ -247,7 +257,10 @@ function Find-UnsafeUNCPermissions {
                 -and $entry.AccessControlType -eq "Allow" `
                 -and $entry.IdentityReference -notmatch $SafeUsers
                 ){
-                if ($script -match '\.') {
+                if ($script -match 'NETLOGON' -or $script -match 'SYSVOL') {
+                    $Type = 'UnsafeUNCFolderPermission'
+                }
+                elseif ($script -match '\.') {
                     $Type = 'UnsafeUNCFilePermission'
                 } else {
                     $Type = 'UnsafeUNCFolderPermission'
@@ -318,6 +331,10 @@ $UnsafeUNCPermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts
 # Find unsafe permissions for unc paths found in logon scripts
 $UnsafeMappedDrives = Find-UnsafeUNCPermissions -UNCScripts $MappedDrives
 
+# Find unsafe NETLOGON & SYSVOL share permissions
+$NetlogonSysvol = Get-NetlogonSysvol
+$UnsafeNetlogonSysvol = Find-UnsafeUNCPermissions -UNCScripts $NetlogonSysvol
+
 # Find unsafe permissions on logon scripts
 $UnsafeLogonScripts = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts
 
@@ -331,5 +348,6 @@ $Credentials = Find-LogonScriptCredentials -LogonScripts $LogonScripts
 Show-Results $UnsafeMappedDrives
 Show-Results $UnsafeLogonScripts
 Show-Results $UnsafeUNCPermissions
+Show-Results $UnsafeNetlogonSysvol
 Show-Results $AdminLogonScripts
 Show-Results $Credentials

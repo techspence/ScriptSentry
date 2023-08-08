@@ -24,7 +24,10 @@ function Find-UnsafeUNCPermissions {
                 -and $entry.AccessControlType -eq "Allow" `
                 -and $entry.IdentityReference -notmatch $SafeUsers
                 ){
-                if ($script -match '\.') {
+                if ($script -match 'NETLOGON' -or $script -match 'SYSVOL') {
+                    $Type = 'UnsafeUNCFolderPermission'
+                }
+                elseif ($script -match '\.') {
                     $Type = 'UnsafeUNCFilePermission'
                 } else {
                     $Type = 'UnsafeUNCFolderPermission'

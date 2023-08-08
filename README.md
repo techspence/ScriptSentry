@@ -8,6 +8,7 @@ ScriptSentry finds misconfigured and dangerous logon scripts.
 | ------ | ------ | ------ |
 | Done | make output an object | Testing successful
 | Done | Multi domain/forest support | Added multi-domain support |
+| Done | Check for misconfigured NETLOGON and SYSVOL share | Added check for unsafe permissions |
 | In progress | Additional regex to search for other dangerous stuff in logon scripts | More detections in the pipeline |
 | ToDo | Write a blog post about this tool/why I made it | |
 | ToDo | Create an official release | |
