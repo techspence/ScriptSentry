@@ -7,11 +7,12 @@ ScriptSentry finds misconfigured and dangerous logon scripts.
 | status | Feature | Notes |
 | ------ | ------ | ------ |
 | Done | make output an object | Testing successful
+| Done | Multi domain/forest support | Added multi-domain support |
 | In progress | Additional regex to search for other dangerous stuff in logon scripts | More detections in the pipeline |
 | ToDo | Write a blog post about this tool/why I made it | |
 | ToDo | Create an official release | |
 | ToDo | Publish to PSGallery | |
-| ToDo | Multi domain/forest support | |
+
 
 
 ### Installing & Running
