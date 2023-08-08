@@ -6,7 +6,7 @@ ScriptSentry finds misconfigured and dangerous logon scripts.
 ### Additional Planned Features
 | status | Feature | Notes |
 | ------ | ------ | ------ |
-| In progress | make output an object | pushed to dev, needs testing
+| Done | make output an object | pushed to dev, needs testing
 | In progress | Additional regex to search for other dangerous stuff in logon scripts | Added detection for unsafe unc folder permissions |
 | ToDo | Write a blog post about this tool/why I made it | |
 | ToDo | Create an official release | |
