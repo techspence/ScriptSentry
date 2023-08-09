@@ -166,7 +166,7 @@ function Find-MappedDrives {
 
     $Shares = @()
     [Array] $Shares = foreach ($script in $LogonScripts) {
-        $temp = Get-Content $script.FullName | Select-String -Pattern '.*net use.*' | ForEach-Object { $_.Matches.Value } 
+        $temp = Get-Content $script.FullName | Select-String -Pattern '.*net use.*','New-SmbMapping','.MapNetworkDrive' | ForEach-Object { $_.Matches.Value } 
         $temp = $temp | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value }
         $temp | ForEach-Object {
             try {
