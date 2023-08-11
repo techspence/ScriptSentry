@@ -21,7 +21,9 @@ function Invoke-ScriptSentry {
     #>
     
     [CmdletBinding()]
-    Param()
+    Param(
+        [boolean]$SaveOutput = $false
+    )
 
     Get-Art -Version '0.3'
 
@@ -64,4 +66,12 @@ function Invoke-ScriptSentry {
     Show-Results $UnsafeNetlogonSysvol
     Show-Results $AdminLogonScripts
     Show-Results $Credentials
+
+    if ($SaveOutput) {
+        $UnsafeMappedDrives | Export-CSV -NoTypeInformation UnsafeMappedDrives.csv
+        $UnsafeLogonScripts | Export-CSV -NoTypeInformation UnsafeLogonScripts.csv
+        $UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv
+        $AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv
+        $Credentials | Export-CSV -NoTypeInformation Credentials.csv
+    }
 }

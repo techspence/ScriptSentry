@@ -12,7 +12,7 @@ ScriptSentry searches the NETLOGON share to
 Invoke-ScriptSentry
 
 .EXAMPLE
-Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
+Invoke-ScriptSentry c:\temp\ScriptSentry.txt
 
 .EXAMPLE
 ScriptSentry.ps1
@@ -20,7 +20,9 @@ ScriptSentry.ps1
 #>
 
 [CmdletBinding()]
-Param()
+Param(
+    [boolean]$SaveOutput = $false
+)
 
 function Get-Domains {
     [CmdletBinding()]
@@ -95,17 +97,18 @@ function Find-AdminLogonScripts {
 
         # Create a new ADSI searcher object
         # $searcher = [adsisearcher]$ldapFilter
-        $searcher = New-Object DirectoryServices.DirectorySearcher([adsi]"LDAP://$Domain", $ldapFilter)
+        $searcher = New-Object DirectoryServices.DirectorySearcher([adsi]"LDAP://$($Domain.Name)", $ldapFilter)
 
         # Specify the properties to retrieve
         $searcher.PropertiesToLoad.Add("samaccountname") | out-null
         $searcher.PropertiesToLoad.Add("scriptPath") | out-null
+        $searcher.PropertiesToLoad.Add("memberOf") | out-null
 
         # Execute the search
         $results = $searcher.FindAll()
 
         # Filter the results based on scriptPath and memberOf properties
-        $AdminLogonScripts = $results | Where-Object { $_.Properties["scriptPath"] -ne $null -and ($adminGroups -match $AdminGroups) }
+        $AdminLogonScripts = $results | Where-Object { $_.Properties["scriptPath"] -ne $null -and ($_.Properties["memberOf"] -match $AdminGroups) }
 
         # "`n[!] Admins found with logon scripts"
         $AdminLogonScripts | Foreach-object {
@@ -147,7 +150,7 @@ function Find-UNCScripts {
         [array]$LogonScripts
     )
 
-    $ExcludedMatches = "copy|&|/command|%WINDIR%|-i"
+    $ExcludedMatches = "copy|&|/command|%WINDIR%|-i|\*"
     $UNCFiles = @()
     [Array] $UNCFiles = foreach ($script in $LogonScripts) {
         $MatchingUNCFiles = Get-Content $script.FullName | Select-String -Pattern '\\\\.*\.\w+' | ForEach-Object { $_.Matches.Value }
@@ -218,7 +221,7 @@ function Find-UnsafeLogonScriptPermissions {
     $SafeUsers = $SafeUsersList
     foreach ($script in $LogonScripts){
         # Write-Verbose -Message "Checking $($script.FullName) for unsafe permissions.."
-        $ACL = (Get-Acl $script.FullName).Access
+        $ACL = (Get-Acl $script.FullName -ErrorAction SilentlyContinue).Access
         foreach ($entry in $ACL) {
             if ($entry.FileSystemRights -match $UnsafeRights `
                 -and $entry.AccessControlType -eq "Allow" `
@@ -356,3 +359,11 @@ Show-Results $UnsafeUNCPermissions
 Show-Results $UnsafeNetlogonSysvol
 Show-Results $AdminLogonScripts
 Show-Results $Credentials
+
+if ($SaveOutput) {
+    $UnsafeMappedDrives | Export-CSV -NoTypeInformation UnsafeMappedDrives.csv
+    $UnsafeLogonScripts | Export-CSV -NoTypeInformation UnsafeLogonScripts.csv
+    $UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv
+    $AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv
+    $Credentials | Export-CSV -NoTypeInformation Credentials.csv
+}
