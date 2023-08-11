@@ -18,12 +18,13 @@ function Find-AdminLogonScripts {
         # Specify the properties to retrieve
         $searcher.PropertiesToLoad.Add("samaccountname") | out-null
         $searcher.PropertiesToLoad.Add("scriptPath") | out-null
+        $searcher.PropertiesToLoad.Add("memberOf") | out-null
 
         # Execute the search
         $results = $searcher.FindAll()
 
         # Filter the results based on scriptPath and memberOf properties
-        $AdminLogonScripts = $results | Where-Object { $_.Properties["scriptPath"] -ne $null -and ($adminGroups -match $AdminGroups) }
+        $AdminLogonScripts = $results | Where-Object { $_.Properties["scriptPath"] -ne $null -and ($_.Properties["memberOf"] -match $AdminGroups) }
 
         # "`n[!] Admins found with logon scripts"
         $AdminLogonScripts | Foreach-object {

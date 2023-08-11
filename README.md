@@ -25,8 +25,11 @@ git clone https://github.com/techspence/ScriptSentry
 Import-Module ScriptSentry.psm1
 Invoke-ScriptSentry
 
-# Run ScriptSentry and save results to a file
+# Run ScriptSentry and save results to a text file
 Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
+
+# Run ScriptSentry and save results to separate csv files in the current directory
+Invoke-ScriptSentry -SaveOutput $true
 
 # Run the standalone ScriptSentry script
 git clone https://github.com/techspence/ScriptSentry
