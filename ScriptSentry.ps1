@@ -9,13 +9,13 @@ ScriptSentry searches the NETLOGON share to
     3) identify scripts and shares that may have dangerous permissions
 
 .EXAMPLE
-Invoke-ScriptSentry
+.\ScriptSentry.ps1
 
 .EXAMPLE
-Invoke-ScriptSentry c:\temp\ScriptSentry.txt
+.\ScriptSentry.ps1 c:\temp\ScriptSentry.txt
 
 .EXAMPLE
-ScriptSentry.ps1
+.\ScriptSentry.ps1 -SaveOutput $true
 
 #>
 

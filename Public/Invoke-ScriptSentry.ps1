@@ -16,7 +16,7 @@ function Invoke-ScriptSentry {
     Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
 
     .EXAMPLE
-    ScriptSentry.ps1
+    Invoke-ScriptSentry -SaveOutput $true
 
     #>
     
