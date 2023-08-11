@@ -15,6 +15,6 @@ function Get-LogonScripts {
         $LogonScripts | ForEach-Object {
             Write-Verbose -Message "$($_.fullName)"
         }
-        $LogonScripts
+        $LogonScripts | Sort-Object -Unique
     }
 }

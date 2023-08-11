@@ -2,23 +2,16 @@ function Find-UnsafeUNCPermissions {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [array]$UNCScripts
+        [array]$UNCScripts,
+        [Parameter(Mandatory = $true)]
+        [array]$SafeUsersList
     )
 
     $UnsafeRights = 'FullControl|Modify|Write'
-    $DomainAdmins = $DomainAdmins = Get-DomainAdmins
-    $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator'
-    $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
+    $SafeUsers = $SafeUsersList
     foreach ($script in $UNCScripts){
-        # Write-Verbose -Message "Checking $script for unsafe permissions.."
-        try{
-            $ACL = (Get-Acl $script -ErrorAction Stop).Access
-        } catch [System.UnauthorizedAccessException] {
-            Write-Host "$_ : You do not have access to $script`n"
-        }
-        catch {
-            Write-Host "An error occurred: $($_.Exception.Message)"
-        }
+        # "Checking $script for unsafe permissions.."
+        $ACL = (Get-Acl $script -ErrorAction SilentlyContinue).Access
         foreach ($entry in $ACL) {
             if ($entry.FileSystemRights -match $UnsafeRights `
                 -and $entry.AccessControlType -eq "Allow" `
@@ -38,7 +31,7 @@ function Find-UnsafeUNCPermissions {
                     User = $entry.IdentityReference.Value
                     Rights = $entry.FileSystemRights
                 }
-                [pscustomobject] $Results
+                [pscustomobject] $Results | Sort-Object -Unique
             }
         }
     }

@@ -14,10 +14,10 @@ function Find-MappedDrives {
                 $Path = "$_"
                 (Get-Item $Path -ErrorAction Stop).FullName
             } catch [System.UnauthorizedAccessException] {
-                Write-Host "$_ : You do not have access to $Directory`n"
+                Write-Verbose "$_ : You do not have access to $Directory`n"
             }
             catch {
-                Write-Host "An error occurred: $($_.Exception.Message)"
+                Write-Verbose "An error occurred: $($_.Exception.Message)"
             }
         }
     }

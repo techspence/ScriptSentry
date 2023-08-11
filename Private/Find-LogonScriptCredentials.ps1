@@ -15,7 +15,7 @@ function Find-LogonScriptCredentials {
                     File = $script.FullName
                     Credential = $_
                 }
-                [pscustomobject] $Results
+                [pscustomobject] $Results | Sort-Object -Unique
             }
         }
     }

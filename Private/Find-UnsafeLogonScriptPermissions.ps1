@@ -2,12 +2,11 @@ function Find-UnsafeLogonScriptPermissions {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [array]$LogonScripts
+        [array]$LogonScripts,
+        [Parameter(Mandatory = $true)]
+        [array]$SafeUsersList
     )
-
-    $DomainAdmins = Get-DomainAdmins
-    $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator'
-    $DomainAdmins | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_ }
+    $SafeUsers = $SafeUsersList
     foreach ($script in $LogonScripts){
         # Write-Verbose -Message "Checking $($script.FullName) for unsafe permissions.."
         $ACL = (Get-Acl $script.FullName).Access
@@ -22,7 +21,7 @@ function Find-UnsafeLogonScriptPermissions {
                     User = $entry.IdentityReference.Value
                     Rights = $entry.FileSystemRights
                 }
-                [pscustomobject] $Results
+                [pscustomobject] $Results | Sort-Object -Unique
             }
         }
     }
