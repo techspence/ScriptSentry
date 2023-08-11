@@ -18,7 +18,6 @@ ScriptSentry finds misconfigured and dangerous logon scripts.
 | ToDo | Publish to PSGallery | |
 
 
-
 ### Installing & Running
 ```PowerShell
 # Clone, import and run, display results on the console
