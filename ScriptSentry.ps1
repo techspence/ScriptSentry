@@ -18,6 +18,7 @@ Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
 ScriptSentry.ps1
 
 #>
+
 [CmdletBinding()]
 Param()
 

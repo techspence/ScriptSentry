@@ -19,6 +19,7 @@ function Invoke-ScriptSentry {
     ScriptSentry.ps1
 
     #>
+    
     [CmdletBinding()]
     Param()
 
