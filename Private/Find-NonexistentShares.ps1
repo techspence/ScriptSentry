@@ -16,23 +16,19 @@ function Find-NonexistentShares {
                 Script = $Script.FullName
             }
             [pscustomobject] $ServerList
-            # Write-Host "$($ServerList.Share)"
         }
     }
 
     $LogonScriptShares = $LogonScriptShares | Sort-Object -Property Server -Unique
-    # $LogonScriptShares | ForEach-Object { Write-Host "$($_.Share)"}
 
     $NonExistentShares = @()
     [Array] $NonExistentShares = foreach ($LogonScriptShare in $LogonScriptShares) {
-        Write-Host "Checking $($LogonScriptShare.Server)"
         try { 
             $DNSEntry = [System.Net.DNS]::GetHostByName($LogonScriptShare.Server)
         } catch {
             $ServerWithoutDNS = $LogonScriptShare
         }
         if ($ServerWithoutDNS) {
-            write-host "$($ServerWithoutDNS.Server)"
             $Results = [ordered] @{
                 Type = 'NonexistentShare'
                 Server = $ServerWithoutDNS.Server
