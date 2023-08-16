@@ -57,7 +57,11 @@ Invoke-ScriptSentry
 \_______)(_______/|/   \__/\_______/|/          )_(   \_______)(_______/|/    )_)   )_(   |/   \__/   \_/
                               by: Spencer Alessi @techspence
                                           v0.3
-
+                                      __,_______
+                                     / __.==---/ * * * * * *
+                                    / (-'
+                                    `-'
+                            Setting phasers to stun, please wait..
 
 ########## Unsafe UNC folder permissions ##########
 
