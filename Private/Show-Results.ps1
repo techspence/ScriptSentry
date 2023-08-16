@@ -7,6 +7,7 @@ function Show-Results {
 
     $IssueTable = @{
         Credentials                 = 'Plaintext credentials'
+        NonexistentShare            = 'Nonexistent Shares'
         AdminLogonScript            = 'Admins with logonscripts'
         UnsafeUNCFilePermission     = 'Unsafe UNC file permissions'
         UnsafeUNCFolderPermission   = 'Unsafe UNC folder permissions'

@@ -40,6 +40,9 @@ function Invoke-ScriptSentry {
     # Find mapped drives (e.g. \\srv01\fileshare1, \\srv02\fileshare2\accounting)
     $MappedDrives = Find-MappedDrives -LogonScripts $LogonScripts
 
+    # Find nonexistent shares
+    $NonExistentShares = Find-NonexistentShares -LogonScripts $LogonScripts
+
     # Find unsafe permissions for unc files found in logon scripts
     $UnsafeUNCPermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts -SafeUsersList $SafeUsers
 
@@ -66,6 +69,7 @@ function Invoke-ScriptSentry {
     Show-Results $UnsafeNetlogonSysvol
     Show-Results $AdminLogonScripts
     Show-Results $Credentials
+    Show-Results $NonExistentShares
 
     if ($SaveOutput) {
         $UnsafeMappedDrives | Export-CSV -NoTypeInformation UnsafeMappedDrives.csv
@@ -73,5 +77,6 @@ function Invoke-ScriptSentry {
         $UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv
         $AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv
         $Credentials | Export-CSV -NoTypeInformation Credentials.csv
+        $NonExistentShares | Export-CSV -NoTypeInformation Credentials.csv
     }
 }

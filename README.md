@@ -103,4 +103,12 @@ Credentials \\eureka.local\sysvol\eureka.local\scripts\ADCheck.ps1 $password = C
 Credentials \\eureka.local\sysvol\eureka.local\scripts\shares.cmd  net use f: \\eureka-dc01\fileshare1\it /user:itadmin Password2468!
 Credentials \\eureka.local\sysvol\eureka.local\scripts\test.cmd    net use g: \\eureka-dc01\fileshare1 /user:user1 Password3355!
 Credentials \\eureka.local\sysvol\eureka.local\scripts\test.cmd    net use h: \\eureka-dc01\fileshare1\accounting /user:userfoo Password5!
+
+########## Nonexistent Shares ##########
+
+Type             Server             Share                                 Script                                                   DNS
+----             ------             -----                                 ------                                                   ---
+NonexistentShare acme               \\acme\DATA                           \\eureka.local\sysvol\eureka.local\scripts\marketing.bat No
+NonexistentShare eureka-srvnotexist \\eureka-srvnotexist\NonExistingShare \\eureka.local\sysvol\eureka.local\scripts\test.cmd      No
+NonexistentShare NAS                \\NAS\PUBLIC                          \\eureka.local\sysvol\eureka.local\scripts\test.bat      No
 ```
