@@ -12,8 +12,9 @@ ScriptSentry finds misconfigured and dangerous logon scripts.
 | Done | Add additional mapped drive checks | Added check for mapped drives via New-SmbMapping (pwsh) & .MapNetworkDrive (vbs)|
 | Done | Improved the ASCII art | Because its fun|
 | Done | Improved regex to reduce false positives | Because regex is hard|
+| Done | Added support for finding nonexistent shares | Checks DNS for file shares that don't exist|
+| Done | Write a blog post about this tool/why I made it | Link to blog post below|
 | In progress | Additional regex to search for other dangerous stuff in logon scripts | More detections in the pipeline |
-| ToDo | Write a blog post about this tool/why I made it | |
 | ToDo | Create an official release | |
 | ToDo | Publish to PSGallery | |
 
