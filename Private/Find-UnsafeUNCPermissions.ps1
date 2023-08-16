@@ -19,19 +19,33 @@ function Find-UnsafeUNCPermissions {
                 ){
                 if ($script -match 'NETLOGON' -or $script -match 'SYSVOL') {
                     $Type = 'UnsafeUNCFolderPermission'
+                    $Results = [ordered] @{
+                        Type = $Type
+                        Folder = $script
+                        User = $entry.IdentityReference.Value
+                        Rights = $entry.FileSystemRights
+                    }
+                    [pscustomobject] $Results | Sort-Object -Unique
                 }
                 elseif ($script -match '\.') {
                     $Type = 'UnsafeUNCFilePermission'
+                    $Results = [ordered] @{
+                        Type = $Type
+                        File = $script
+                        User = $entry.IdentityReference.Value
+                        Rights = $entry.FileSystemRights
+                    }
+                    [pscustomobject] $Results | Sort-Object -Unique
                 } else {
                     $Type = 'UnsafeUNCFolderPermission'
+                    $Results = [ordered] @{
+                        Type = $Type
+                        Folder = $script
+                        User = $entry.IdentityReference.Value
+                        Rights = $entry.FileSystemRights
+                    }
+                    [pscustomobject] $Results | Sort-Object -Unique
                 }
-                $Results = [ordered] @{
-                    Type = $Type
-                    File = $script
-                    User = $entry.IdentityReference.Value
-                    Rights = $entry.FileSystemRights
-                }
-                [pscustomobject] $Results | Sort-Object -Unique
             }
         }
     }

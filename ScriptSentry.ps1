@@ -183,8 +183,10 @@ function Find-MappedDrives {
         $temp | ForEach-Object {
             try {
                 $Path = "$_"
+                # Live servers we have access to
                 (Get-Item $Path -ErrorAction Stop).FullName
             } catch [System.UnauthorizedAccessException] {
+                # Servers we either don't have access to or do not exist
                 Write-Verbose "$_ : You do not have access to $Directory`n"
             }
             catch {
@@ -200,6 +202,55 @@ function Find-MappedDrives {
 
     $Shares | Sort-Object -Unique
 }
+function Find-NonexistentShares {
+    [CmdletBinding()]
+    param (
+        [array]$LogonScripts
+    )
+    
+    
+    $LogonScriptShares = @()
+    [Array] $LogonScriptShares = foreach ($script in $LogonScripts) {
+        $temp = Get-Content $script.FullName | Select-String -Pattern '.*net use.*','New-SmbMapping','.MapNetworkDrive' | ForEach-Object { $_.Matches.Value } 
+        $temp = $temp | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value }
+        $temp | ForEach-Object {
+            $ServerList = [ordered] @{
+                Server = $_ -split '\\' | Where-Object {$_ -ne ""} | Select-Object -First 1
+                Share = $_
+                Script = $Script.FullName
+            }
+            [pscustomobject] $ServerList
+            # Write-Host "$($ServerList.Share)"
+        }
+    }
+
+    $LogonScriptShares = $LogonScriptShares | Sort-Object -Property Server -Unique
+    # $LogonScriptShares | ForEach-Object { Write-Host "$($_.Share)"}
+
+    $NonExistentShares = @()
+    [Array] $NonExistentShares = foreach ($LogonScriptShare in $LogonScriptShares) {
+        Write-Host "Checking $($LogonScriptShare.Server)"
+        try { 
+            $DNSEntry = [System.Net.DNS]::GetHostByName($LogonScriptShare.Server)
+        } catch {
+            $ServerWithoutDNS = $LogonScriptShare
+        }
+        if ($ServerWithoutDNS) {
+            write-host "$($ServerWithoutDNS.Server)"
+            $Results = [ordered] @{
+                Type = 'NonexistentShare'
+                Server = $ServerWithoutDNS.Server
+                Share = $ServerWithoutDNS.Share
+                Script = $ServerWithoutDNS.Script
+                DNS = 'No'
+            }
+        }
+        [pscustomobject] $Results
+    }
+
+    $NonExistentShares | Sort-Object -Property Server -Unique
+}
+
 function Get-NetlogonSysvol {
     [CmdletBinding()]
     param()
@@ -259,19 +310,33 @@ function Find-UnsafeUNCPermissions {
                 ){
                 if ($script -match 'NETLOGON' -or $script -match 'SYSVOL') {
                     $Type = 'UnsafeUNCFolderPermission'
+                    $Results = [ordered] @{
+                        Type = $Type
+                        Folder = $script
+                        User = $entry.IdentityReference.Value
+                        Rights = $entry.FileSystemRights
+                    }
+                    [pscustomobject] $Results | Sort-Object -Unique
                 }
                 elseif ($script -match '\.') {
                     $Type = 'UnsafeUNCFilePermission'
+                    $Results = [ordered] @{
+                        Type = $Type
+                        File = $script
+                        User = $entry.IdentityReference.Value
+                        Rights = $entry.FileSystemRights
+                    }
+                    [pscustomobject] $Results | Sort-Object -Unique
                 } else {
                     $Type = 'UnsafeUNCFolderPermission'
+                    $Results = [ordered] @{
+                        Type = $Type
+                        Folder = $script
+                        User = $entry.IdentityReference.Value
+                        Rights = $entry.FileSystemRights
+                    }
+                    [pscustomobject] $Results | Sort-Object -Unique
                 }
-                $Results = [ordered] @{
-                    Type = $Type
-                    File = $script
-                    User = $entry.IdentityReference.Value
-                    Rights = $entry.FileSystemRights
-                }
-                [pscustomobject] $Results | Sort-Object -Unique
             }
         }
     }
@@ -285,6 +350,7 @@ function Show-Results {
 
     $IssueTable = @{
         Credentials                 = 'Plaintext credentials'
+        NonexistentShare            = 'Nonexistent Shares'
         AdminLogonScript            = 'Admins with logonscripts'
         UnsafeUNCFilePermission     = 'Unsafe UNC file permissions'
         UnsafeUNCFolderPermission   = 'Unsafe UNC folder permissions'
@@ -333,6 +399,9 @@ $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
 # Find mapped drives (e.g. \\srv01\fileshare1, \\srv02\fileshare2\accounting)
 $MappedDrives = Find-MappedDrives -LogonScripts $LogonScripts
 
+# Find nonexistent shares
+$NonExistentShares = Find-NonexistentShares -LogonScripts $LogonScripts
+
 # Find unsafe permissions for unc files found in logon scripts
 $UnsafeUNCPermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts -SafeUsersList $SafeUsers
 
@@ -359,6 +428,7 @@ Show-Results $UnsafeUNCPermissions
 Show-Results $UnsafeNetlogonSysvol
 Show-Results $AdminLogonScripts
 Show-Results $Credentials
+Show-Results $NonExistentShares
 
 if ($SaveOutput) {
     $UnsafeMappedDrives | Export-CSV -NoTypeInformation UnsafeMappedDrives.csv
@@ -366,4 +436,5 @@ if ($SaveOutput) {
     $UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv
     $AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv
     $Credentials | Export-CSV -NoTypeInformation Credentials.csv
+    $NonExistentShares | Export-CSV -NoTypeInformation Credentials.csv
 }

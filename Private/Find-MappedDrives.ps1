@@ -12,8 +12,10 @@ function Find-MappedDrives {
         $temp | ForEach-Object {
             try {
                 $Path = "$_"
+                # Live servers we have access to
                 (Get-Item $Path -ErrorAction Stop).FullName
             } catch [System.UnauthorizedAccessException] {
+                # Servers we either don't have access to or do not exist
                 Write-Verbose "$_ : You do not have access to $Directory`n"
             }
             catch {
