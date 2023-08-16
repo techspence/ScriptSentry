@@ -17,6 +17,8 @@ ScriptSentry finds misconfigured and dangerous logon scripts.
 | ToDo | Create an official release | |
 | ToDo | Publish to PSGallery | |
 
+### Read the blog post
+https://offsec.blog/hidden-menace-how-to-identify-misconfigured-and-dangerous-logon-scripts/
 
 ### Installing & Running
 ```PowerShell
