@@ -122,7 +122,7 @@ Type             User                                                      Logon
 AdminLogonScript LDAP://CN=Administrator,CN=Users,DC=eureka,DC=local       run.vbs
 AdminLogonScript LDAP://CN=it admin,OU=Admins,OU=Eureka,DC=eureka,DC=local elevate.vbs
 
-########## Exploitable logon scripts ##########
+########## Admins with logonscripts mapped from nonexistent share ##########
 
 Type                   Server             Share                                 Script                                              DNS Exploitable Admins                                                                
 ----                   ------             -----                                 ------                                              --- ----------- ------                                                                

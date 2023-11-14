@@ -637,15 +637,6 @@ function Get-DomainUser {
             [Switch]
             $Raw
         )
-    
-    DynamicParam {
-            $UACValueNames = [Enum]::GetNames($UACEnum)
-            # add in the negations
-            $UACValueNames = $UACValueNames | ForEach-Object {$_; "NOT_$_"}
-            # create new dynamic parameter
-            New-DynamicParameter -Name UACFilter -ValidateSet $UACValueNames -Type ([array])
-        }
-    
     BEGIN {
             $SearcherArguments = @{}
             if ($PSBoundParameters['Domain']) { $SearcherArguments['Domain'] = $Domain }
@@ -662,11 +653,6 @@ function Get-DomainUser {
         }
     
     PROCESS {
-            #bind dynamic parameter to a friendly variable
-            if ($PSBoundParameters -and ($PSBoundParameters.Count -ne 0)) {
-                New-DynamicParameter -CreateVariables -BoundParameters $PSBoundParameters
-            }
-    
             if ($UserSearcher) {
                 $IdentityFilter = ''
                 $Filter = ''
@@ -1030,6 +1016,130 @@ function Get-Art($Version) {
                            Setting phasers to stun, please wait..
 "
 }
+function Convert-LDAPProperty {
+<#
+.SYNOPSIS
+
+Helper that converts specific LDAP property result fields and outputs
+a custom psobject.
+
+Author: Will Schroeder (@harmj0y)  
+License: BSD 3-Clause  
+Required Dependencies: None  
+
+.DESCRIPTION
+
+Converts a set of raw LDAP properties results from ADSI/LDAP searches
+into a proper PSObject. Used by several of the Get-Domain* function.
+
+.PARAMETER Properties
+
+Properties object to extract out LDAP fields for display.
+
+.OUTPUTS
+
+System.Management.Automation.PSCustomObject
+
+A custom PSObject with LDAP hashtable properties translated.
+#>
+
+    [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '')]
+    [OutputType('System.Management.Automation.PSCustomObject')]
+    [CmdletBinding()]
+    Param(
+        [Parameter(Mandatory = $True, ValueFromPipeline = $True)]
+        [ValidateNotNullOrEmpty()]
+        $Properties
+    )
+
+    $ObjectProperties = @{}
+
+    $Properties.PropertyNames | ForEach-Object {
+        if ($_ -ne 'adspath') {
+            if (($_ -eq 'objectsid') -or ($_ -eq 'sidhistory')) {
+                # convert all listed sids (i.e. if multiple are listed in sidHistory)
+                #$ObjectProperties[$_] = $Properties[$_] | ForEach-Object { (New-Object System.Security.Principal.SecurityIdentifier($_, 0)).Value }
+            }
+            elseif ($_ -eq 'grouptype') {
+                #$ObjectProperties[$_] = $Properties[$_][0] -as $GroupTypeEnum
+            }
+            elseif ($_ -eq 'samaccounttype') {
+                #$ObjectProperties[$_] = $Properties[$_][0] -as $SamAccountTypeEnum
+            }
+            elseif ($_ -eq 'objectguid') {
+                # convert the GUID to a string
+                #$ObjectProperties[$_] = (New-Object Guid (,$Properties[$_][0])).Guid
+            }
+            elseif ($_ -eq 'useraccountcontrol') {
+                #$ObjectProperties[$_] = $Properties[$_][0] -as $UACEnum
+            }
+            elseif ($_ -eq 'ntsecuritydescriptor') {
+                # $ObjectProperties[$_] = New-Object Security.AccessControl.RawSecurityDescriptor -ArgumentList $Properties[$_][0], 0
+                $Descriptor = New-Object Security.AccessControl.RawSecurityDescriptor -ArgumentList $Properties[$_][0], 0
+                if ($Descriptor.Owner) {
+                    $ObjectProperties['Owner'] = $Descriptor.Owner
+                }
+                if ($Descriptor.Group) {
+                    $ObjectProperties['Group'] = $Descriptor.Group
+                }
+                if ($Descriptor.DiscretionaryAcl) {
+                    $ObjectProperties['DiscretionaryAcl'] = $Descriptor.DiscretionaryAcl
+                }
+                if ($Descriptor.SystemAcl) {
+                    $ObjectProperties['SystemAcl'] = $Descriptor.SystemAcl
+                }
+            }
+            elseif ($_ -eq 'accountexpires') {
+                if ($Properties[$_][0] -gt [DateTime]::MaxValue.Ticks) {
+                    $ObjectProperties[$_] = "NEVER"
+                }
+                else {
+                    $ObjectProperties[$_] = [datetime]::fromfiletime($Properties[$_][0])
+                }
+            }
+            elseif ( ($_ -eq 'lastlogon') -or ($_ -eq 'lastlogontimestamp') -or ($_ -eq 'pwdlastset') -or ($_ -eq 'lastlogoff') -or ($_ -eq 'badPasswordTime') ) {
+                # convert timestamps
+                if ($Properties[$_][0] -is [System.MarshalByRefObject]) {
+                    # if we have a System.__ComObject
+                    $Temp = $Properties[$_][0]
+                    [Int32]$High = $Temp.GetType().InvokeMember('HighPart', [System.Reflection.BindingFlags]::GetProperty, $Null, $Temp, $Null)
+                    [Int32]$Low  = $Temp.GetType().InvokeMember('LowPart',  [System.Reflection.BindingFlags]::GetProperty, $Null, $Temp, $Null)
+                    $ObjectProperties[$_] = ([datetime]::FromFileTime([Int64]("0x{0:x8}{1:x8}" -f $High, $Low)))
+                }
+                else {
+                    # otherwise just a string
+                    $ObjectProperties[$_] = ([datetime]::FromFileTime(($Properties[$_][0])))
+                }
+            }
+            elseif ($Properties[$_][0] -is [System.MarshalByRefObject]) {
+                # try to convert misc com objects
+                $Prop = $Properties[$_]
+                try {
+                    $Temp = $Prop[$_][0]
+                    [Int32]$High = $Temp.GetType().InvokeMember('HighPart', [System.Reflection.BindingFlags]::GetProperty, $Null, $Temp, $Null)
+                    [Int32]$Low  = $Temp.GetType().InvokeMember('LowPart',  [System.Reflection.BindingFlags]::GetProperty, $Null, $Temp, $Null)
+                    $ObjectProperties[$_] = [Int64]("0x{0:x8}{1:x8}" -f $High, $Low)
+                }
+                catch {
+                    Write-Verbose "[Convert-LDAPProperty] error: $_"
+                    $ObjectProperties[$_] = $Prop[$_]
+                }
+            }
+            elseif ($Properties[$_].count -eq 1) {
+                $ObjectProperties[$_] = $Properties[$_][0]
+            }
+            else {
+                $ObjectProperties[$_] = $Properties[$_]
+            }
+        }
+    }
+    try {
+        New-Object -TypeName PSObject -Property $ObjectProperties
+    }
+    catch {
+        Write-Warning "[Convert-LDAPProperty] Error parsing LDAP properties : $_"
+    }
+}
 function Find-AdminLogonScripts {
     [CmdletBinding()]
     param (
@@ -1349,7 +1459,7 @@ function Show-Results {
     $IssueTable = @{
         Credentials                    = 'Plaintext credentials'
         NonexistentShare               = 'Nonexistent Shares'
-        ExploitableLogonScript         = 'Exploitable logon scripts'
+        ExploitableLogonScript         = 'Admins with logonscripts mapped from nonexistent share'
         AdminLogonScript               = 'Admins with logonscripts'
         UnsafeNetlogonSysvol           = 'Unsafe NETLOGON/SYSVOL permissions'
         UnsafeUNCFilePermission        = 'Unsafe UNC file permissions'
@@ -1430,6 +1540,7 @@ if ($SaveOutput) {
     $UnsafeLogonScripts | Export-CSV -NoTypeInformation UnsafeLogonScripts.csv
     $UnsafeGPOLogonScripts | Export-Csv -NoTypeInformation UnsafeGPOLogonScripts.csv
     $UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv
+    $UnsafeNetlogonSysvol | Export-Csv -NoTypeInformation UnsafeNetlogonSysvol.csv
     $AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv
     $Credentials | Export-CSV -NoTypeInformation Credentials.csv
     $NonExistentShares | Export-CSV -NoTypeInformation NonExistentShares.csv
