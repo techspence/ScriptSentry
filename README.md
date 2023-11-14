@@ -15,8 +15,8 @@ ScriptSentry finds misconfigured and dangerous logon scripts.
 | Done | Added support for finding nonexistent shares | Checks DNS for file shares that don't exist|
 | Done | Write a blog post about this tool/why I made it | Link to blog post below|
 | Done | Add check for Logon Scripts that have been configured via GPO | Implemented|
-| Done | Slight changes to NETLOGON & SYSVOL misconfiguration check & result output Implemented|
-| Done | Simplified the project. Maybe someday I will build an actual PSGallery Module Implemented|
+| Done | Slight changes to NETLOGON & SYSVOL misconfiguration check & result output |Implemented|
+| Done | Simplified the project. Maybe someday I will build an actual PSGallery Module |Implemented|
 | Done | ScriptSentry now checks all admins for logonscripts not just domain admins| Implemented|
 | In progress | Additional regex to search for other dangerous stuff in logon scripts | More detections in the pipeline |
 
