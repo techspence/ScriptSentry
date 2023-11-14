@@ -18,6 +18,7 @@ ScriptSentry finds misconfigured and dangerous logon scripts.
 | Done | Slight changes to NETLOGON & SYSVOL misconfiguration check & result output |Implemented|
 | Done | Simplified the project. Maybe someday I will build an actual PSGallery Module |Implemented|
 | Done | ScriptSentry now checks all admins for logonscripts not just domain admins| Implemented|
+| Done | Added a couple PowerView functions to make group/user searching easier|Implemented|
 | In progress | Additional regex to search for other dangerous stuff in logon scripts | More detections in the pipeline |
 
 ### Read the blog post
