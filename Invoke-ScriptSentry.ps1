@@ -1168,7 +1168,7 @@ function Find-LogonScriptCredentials {
     )
     foreach ($script in $LogonScripts) {
         # Write-Verbose -Message "Checking $($Script.FullName) for credentials.."
-        $Credentials = Get-Content -Path $script.FullName | Select-String -Pattern "/user:","-AsPlainText" -AllMatches
+        $Credentials = Get-Content -Path $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern "/user:","-AsPlainText" -AllMatches
         if ($Credentials) {
             # "`n[!] CREDENTIALS FOUND!"
             $Credentials | ForEach-Object {
@@ -1192,7 +1192,7 @@ function Find-UNCScripts {
     $ExcludedMatches = "copy|&|/command|%WINDIR%|-i|\*"
     $UNCFiles = @()
     [Array] $UNCFiles = foreach ($script in $LogonScripts) {
-        $MatchingUNCFiles = Get-Content $script.FullName | Select-String -Pattern '\\\\.*\.\w+' | ForEach-Object { $_.Matches.Value }
+        $MatchingUNCFiles = Get-Content $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern '\\\\.*\.\w+' | ForEach-Object { $_.Matches.Value }
         $MatchingUNCFiles | Foreach-object {
             if ($_ -match $ExcludedMatches) {
                 # don't collect
@@ -1217,7 +1217,7 @@ function Find-MappedDrives {
 
     $Shares = @()
     [Array] $Shares = foreach ($script in $LogonScripts) {
-        $temp = Get-Content $script.FullName | Select-String -Pattern '.*net use.*','New-SmbMapping','.MapNetworkDrive' | ForEach-Object { $_.Matches.Value } 
+        $temp = Get-Content $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern '.*net use.*','New-SmbMapping','.MapNetworkDrive' | ForEach-Object { $_.Matches.Value } 
         $temp = $temp | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value }
         $temp | ForEach-Object {
             try {
@@ -1249,7 +1249,7 @@ function Find-NonexistentShares {
     )
     $LogonScriptShares = @()
     [Array] $LogonScriptShares = foreach ($script in $LogonScripts) {
-        $temp = Get-Content $script.FullName | Select-String -Pattern '.*net use.*','New-SmbMapping','.MapNetworkDrive' | ForEach-Object { $_.Matches.Value } 
+        $temp = Get-Content $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern '.*net use.*','New-SmbMapping','.MapNetworkDrive' | ForEach-Object { $_.Matches.Value }
         $temp = $temp | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value }
         $temp | ForEach-Object {
             $ServerList = [ordered] @{
@@ -1402,7 +1402,7 @@ function Find-UnsafeLogonScriptPermissions {
     $SafeUsers = $SafeUsersList
     foreach ($script in $LogonScripts){
         # Write-Verbose -Message "Checking $($script.FullName) for unsafe permissions.."
-        $ACL = (Get-Acl $script.FullName -ErrorAction SilentlyContinue).Access
+        $ACL = try { (Get-Acl $script.FullName -ErrorAction SilentlyContinue).Access } catch{}
         foreach ($entry in $ACL) {
             if ($entry.FileSystemRights -match $UnsafeRights `
                 -and $entry.AccessControlType -eq "Allow" `
@@ -1525,24 +1525,24 @@ $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
 $Credentials = Find-LogonScriptCredentials -LogonScripts $LogonScripts
 
 # Show all results
-Show-Results $UnsafeMappedDrives
-Show-Results $UnsafeLogonScripts
-Show-Results $UnsafeGPOLogonScripts
-Show-Results $UnsafeUNCPermissions
-Show-Results $UnsafeNetlogonSysvol
-Show-Results $Credentials
-Show-Results $NonExistentShares
-Show-Results $AdminLogonScripts
-Show-Results $ExploitableLogonScripts
+if ($UnsafeMappedDrives) {Show-Results $UnsafeMappedDrives}
+if ($UnsafeLogonScripts) {Show-Results $UnsafeLogonScripts}
+if ($UnsafeGPOLogonScripts) {Show-Results $UnsafeGPOLogonScripts}
+if ($UnsafeUNCPermissions) {Show-Results $UnsafeUNCPermissions}
+if ($UnsafeNetlogonSysvol) {Show-Results $UnsafeNetlogonSysvol}
+if ($Credentials) {Show-Results $Credentials}
+if ($NonExistentShares) {Show-Results $NonExistentShares}
+if ($AdminLogonScripts) {Show-Results $AdminLogonScripts}
+if ($ExploitableLogonScripts) {Show-Results $ExploitableLogonScripts}
 
 if ($SaveOutput) {
-    $UnsafeMappedDrives | Export-CSV -NoTypeInformation UnsafeMappedDrives.csv
-    $UnsafeLogonScripts | Export-CSV -NoTypeInformation UnsafeLogonScripts.csv
-    $UnsafeGPOLogonScripts | Export-Csv -NoTypeInformation UnsafeGPOLogonScripts.csv
-    $UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv
-    $UnsafeNetlogonSysvol | Export-Csv -NoTypeInformation UnsafeNetlogonSysvol.csv
-    $AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv
-    $Credentials | Export-CSV -NoTypeInformation Credentials.csv
-    $NonExistentShares | Export-CSV -NoTypeInformation NonExistentShares.csv
-    $ExploitableLogonScripts | Export-CSV -NoTypeInformation ExploitableLogonScripts.csv
+    if ($UnsafeMappedDrives) {$UnsafeMappedDrives | Export-CSV -NoTypeInformation UnsafeMappedDrives.csv}
+    if ($UnsafeLogonScripts) {$UnsafeLogonScripts | Export-CSV -NoTypeInformation UnsafeLogonScripts.csv}
+    if ($UnsafeGPOLogonScripts) {$UnsafeGPOLogonScripts | Export-Csv -NoTypeInformation UnsafeGPOLogonScripts.csv}
+    if ($UnsafeUNCPermissions) {$UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv}
+    if ($UnsafeNetlogonSysvol) {$UnsafeNetlogonSysvol | Export-Csv -NoTypeInformation UnsafeNetlogonSysvol.csv}
+    if ($AdminLogonScripts) {$AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv}
+    if ($Credentials) {$Credentials | Export-CSV -NoTypeInformation Credentials.csv}
+    if ($NonExistentShares) {$NonExistentShares | Export-CSV -NoTypeInformation NonExistentShares.csv}
+    if ($ExploitableLogonScripts) {$ExploitableLogonScripts | Export-CSV -NoTypeInformation ExploitableLogonScripts.csv}
 }
