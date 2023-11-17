@@ -23,12 +23,68 @@ Param(
     [boolean]$SaveOutput = $false
 )
     
-function Get-Domains {
+function Get-ForestDomains {
     [CmdletBinding()]
     param()
 
     $forest = [System.DirectoryServices.ActiveDirectory.Forest]::GetCurrentForest()
     $forest.Domains
+}
+function Get-Domain {
+    [OutputType([System.DirectoryServices.ActiveDirectory.Domain])]
+    [CmdletBinding()]
+    Param(
+        [Parameter(Position = 0, ValueFromPipeline = $True)]
+        [ValidateNotNullOrEmpty()]
+        [String]
+        $Domain,
+
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty
+    )
+
+    PROCESS {
+        if ($PSBoundParameters['Credential']) {
+
+            Write-Verbose '[Get-Domain] Using alternate credentials for Get-Domain'
+
+            if ($PSBoundParameters['Domain']) {
+                $TargetDomain = $Domain
+            }
+            else {
+                # if no domain is supplied, extract the logon domain from the PSCredential passed
+                $TargetDomain = $Credential.GetNetworkCredential().Domain
+                Write-Verbose "[Get-Domain] Extracted domain '$TargetDomain' from -Credential"
+            }
+
+            $DomainContext = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext('Domain', $TargetDomain, $Credential.UserName, $Credential.GetNetworkCredential().Password)
+
+            try {
+                [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($DomainContext)
+            }
+            catch {
+                Write-Verbose "[Get-Domain] The specified domain '$TargetDomain' does not exist, could not be contacted, there isn't an existing trust, or the specified credentials are invalid: $_"
+            }
+        }
+        elseif ($PSBoundParameters['Domain']) {
+            $DomainContext = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext('Domain', $Domain)
+            try {
+                [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($DomainContext)
+            }
+            catch {
+                Write-Verbose "[Get-Domain] The specified domain '$Domain' does not exist, could not be contacted, or there isn't an existing trust : $_"
+            }
+        }
+        else {
+            try {
+                [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
+            }
+            catch {
+                Write-Verbose "[Get-Domain] Error retrieving the current domain: $_"
+            }
+        }
+    }
 }
 function Get-DomainSearcher {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '')]
@@ -951,7 +1007,7 @@ function Get-LogonScripts {
 
     # Get the current domain name from the environment
     # $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
-    $Domains = Get-Domains
+    $Domains = Get-ForestDomains
 
     foreach ($Domain in $Domains) {
         # $SysvolScripts = '\\' + (Get-ADDomain).DNSRoot + '\sysvol\' + (Get-ADDomain).DNSRoot + '\scripts'
@@ -971,7 +1027,7 @@ function Get-GPOLogonScripts {
 
     # Get the current domain name from the environment
     # $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
-    $Domains = Get-Domains
+    $Domains = Get-ForestDomains
 
     foreach ($Domain in $Domains) {
         $Policies = Get-ChildItem "\\$($Domain.Name)\SysVol\$($Domain.Name)\Policies" -ErrorAction SilentlyContinue
@@ -991,7 +1047,7 @@ function Get-NetlogonSysvol {
     [CmdletBinding()]
     param()
 
-    $Domains = Get-Domains
+    $Domains = Get-ForestDomains
     foreach ($Domain in $Domains){
         "\\$($Domain.Name)\NETLOGON"
         "\\$($Domain.Name)\SYSVOL"
@@ -1261,7 +1317,7 @@ function Find-NonexistentShares {
         }
     }
 
-    $LogonScriptShares = $LogonScriptShares | Sort-Object -Property Script -Unique
+    $LogonScriptShares = $LogonScriptShares #| Sort-Object -Property Share -Unique
     $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
     $Admins = 'No'
     $Exploitable = 'No'
@@ -1276,7 +1332,7 @@ function Find-NonexistentShares {
 
         if ($ServerWithoutDNS) {
             foreach ($AdminScript in $AdminLogonScripts) {
-                if ((Get-Item $LogonScriptShare.Script).Name -match $AdminScript.LogonScript){
+                if ((Get-Item $ServerWithoutDNS.Script).Name -match $AdminScript.LogonScript){
                     $Admins = $AdminScript.User
                     $Exploitable = 'Yes'
                     $Results = [ordered] @{
@@ -1500,7 +1556,7 @@ $NonExistentSharesScripts = Find-NonexistentShares -LogonScripts $LogonScripts -
 $NonExistentShares = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Potentially'} | Sort-Object -Property Share -Unique
 
 # Find Exploitable logon scripts
-$ExploitableLogonScripts = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Yes'} | Sort-Object -Property Admins -Unique
+$ExploitableLogonScripts = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Yes'}
 
 # Find unsafe permissions for unc files found in logon scripts
 $UnsafeUNCPermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts -SafeUsersList $SafeUsers
