@@ -3,40 +3,21 @@
 
 ScriptSentry finds misconfigured and dangerous logon scripts.
 
-### Additional Planned Features
-| status | Feature | Notes |
-| ------ | ------ | ------ |
-| Done | make output an object | Testing successful
-| Done | Multi domain/forest support | Added multi-domain support |
-| Done | Check for misconfigured NETLOGON and SYSVOL share | Added check for unsafe permissions |
-| Done | Add additional mapped drive checks | Added check for mapped drives via New-SmbMapping (pwsh) & .MapNetworkDrive (vbs)|
-| Done | Improved the ASCII art | Because its fun|
-| Done | Improved regex to reduce false positives | Because regex is hard|
-| Done | Added support for finding nonexistent shares | Checks DNS for file shares that don't exist|
-| Done | Write a blog post about this tool/why I made it | Link to blog post below|
-| Done | Add check for Logon Scripts that have been configured via GPO | Implemented|
-| Done | Slight changes to NETLOGON & SYSVOL misconfiguration check & result output |Implemented|
-| Done | Simplified the project. Maybe someday I will build an actual PSGallery Module |Implemented|
-| Done | ScriptSentry now checks all admins for logonscripts not just domain admins| Implemented|
-| Done | Added a couple PowerView functions to make group/user searching easier (Get-DomainSearcher, Get-DomainGroupMember, Get-DomainUser, Get-DomainObject, Convert-LDAPProperty)|Implemented|
-| In progress | Additional regex to search for other dangerous stuff in logon scripts | More detections in the pipeline |
-
 ### Read the blog post
 https://offsec.blog/hidden-menace-how-to-identify-misconfigured-and-dangerous-logon-scripts/
 
-### Installing & Running
+### Usage
 ```PowerShell
 # Clone, run, and display results on the console
 git clone https://github.com/techspence/ScriptSentry
 .\Invoke-ScriptSentry.ps1
 
 # Run ScriptSentry and save results to a text file
+Invoke-WebRequest 'https://raw.githubusercontent.com/techspence/ScriptSentry/main/Invoke-ScriptSentry.ps1' -OutFile Invoke-ScriptSentry.ps1
 .\Invoke-ScriptSentry.ps1 | Out-File c:\temp\ScriptSentry.txt
 
 # Run ScriptSentry and save results to separate csv files in the current directory
 .\Invoke-ScriptSentry.ps1 -SaveOutput $true
-
-
 ```
 
 ### Example Output
