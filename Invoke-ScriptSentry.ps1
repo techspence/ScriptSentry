@@ -1012,7 +1012,7 @@ function Get-LogonScripts {
     foreach ($Domain in $Domains) {
         # $SysvolScripts = '\\' + (Get-ADDomain).DNSRoot + '\sysvol\' + (Get-ADDomain).DNSRoot + '\scripts'
         $SysvolScripts = "\\$($Domain.Name)\sysvol\$($Domain.Name)\scripts"
-        $ExtensionList = '.bat|.vbs|.ps1|.cmd'
+        $ExtensionList = '.bat|.vbs|.ps1|.cmd|.kix'
         $LogonScripts = try { Get-ChildItem -Path $SysvolScripts -Recurse | Where-Object {$_.Extension -match $ExtensionList} } catch {}
         Write-Verbose "[+] Logon scripts:"
         $LogonScripts | ForEach-Object {
@@ -1532,7 +1532,7 @@ function Show-Results {
     }
 }
 
-Get-Art -Version '0.4'
+Get-Art -Version '0.5'
 
 $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator|NT SERVICE\\TrustedInstaller|Domain Admins|Server Operators|Enterprise Admins|CREATOR OWNER'
 $AdminGroups = @("Account Operators", "Administrators", "Backup Operators", "Cryptographic Operators", "Distributed COM Users", "Domain Admins", "Domain Controllers", "Enterprise Admins", "Print Operators", "Schema Admins", "Server Operators")
@@ -1545,7 +1545,7 @@ $LogonScripts = Get-LogonScripts
 # Get a list of all GPO logon scripts
 $GPOLogonScripts = Get-GPOLogonScripts
 
-# Find logon scripts (.bat, .vbs, .cmd, .ps1) that contain unc paths (e.g. \\srv01\fileshare1)
+# Find logon scripts (.bat, .vbs, .cmd, .ps1, .kix) that contain unc paths (e.g. \\srv01\fileshare1)
 $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
 
 # Find mapped drives (e.g. \\srv01\fileshare1, \\srv02\fileshare2\accounting)
