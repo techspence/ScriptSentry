@@ -1562,7 +1562,9 @@ $ExploitableLogonScripts = $NonExistentSharesScripts | Where-Object {$_.Exploita
 $UnsafeUNCPermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts -SafeUsersList $SafeUsers
 
 # Find unsafe permissions for unc paths found in logon scripts
-$UnsafeMappedDrives = Find-UnsafeUNCPermissions -UNCScripts $MappedDrives -SafeUsersList $SafeUsers
+if ($null -ne $MappedDrives) {
+    $UnsafeMappedDrives = Find-UnsafeUNCPermissions -UNCScripts $MappedDrives -SafeUsersList $SafeUsers
+}
 
 # Find unsafe NETLOGON & SYSVOL share permissions
 $NetlogonSysvol = Get-NetlogonSysvol
@@ -1572,7 +1574,9 @@ $UnsafeNetlogonSysvol = Find-UnsafeUNCPermissions -UNCScripts $NetlogonSysvol -S
 $UnsafeLogonScripts = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts -SafeUsersList $SafeUsers
 
 # Find unsafe permissions on GPO logon scripts
-$UnsafeGPOLogonScripts = Find-UnsafeGPOLogonScriptPermissions -GPOLogonScripts $GPOLogonScripts -SafeUsersList $SafeUsers
+if ($null -ne $GPOLogonScripts) {
+    $UnsafeGPOLogonScripts = Find-UnsafeGPOLogonScriptPermissions -GPOLogonScripts $GPOLogonScripts -SafeUsersList $SafeUsers
+}
 
 # Find admins that have logon scripts assigned
 $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
