@@ -8,16 +8,17 @@ https://offsec.blog/hidden-menace-how-to-identify-misconfigured-and-dangerous-lo
 
 ### Usage
 ```PowerShell
-# Clone, run, and display results on the console
-git clone https://github.com/techspence/ScriptSentry
-.\Invoke-ScriptSentry.ps1
+# Run ScriptSentry and display results on the console
+IEX(Invoke-WebRequest 'https://raw.githubusercontent.com/techspence/ScriptSentry/main/Invoke-ScriptSentry.ps1')
+Invoke-ScriptSentry
 
-# Run ScriptSentry and save results to a text file
-Invoke-WebRequest 'https://raw.githubusercontent.com/techspence/ScriptSentry/main/Invoke-ScriptSentry.ps1' -OutFile Invoke-ScriptSentry.ps1
-.\Invoke-ScriptSentry.ps1 | Out-File c:\temp\ScriptSentry.txt
+# Run ScriptSentry and save output to a text file
+IEX(Invoke-WebRequest 'https://raw.githubusercontent.com/techspence/ScriptSentry/main/Invoke-ScriptSentry.ps1')
+Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
 
 # Run ScriptSentry and save results to separate csv files in the current directory
-.\Invoke-ScriptSentry.ps1 -SaveOutput $true
+IEX(Invoke-WebRequest 'https://raw.githubusercontent.com/techspence/ScriptSentry/main/Invoke-ScriptSentry.ps1')
+Invoke-ScriptSentry -SaveOutput $true
 ```
 
 ### Example Output
@@ -31,7 +32,7 @@ Invoke-WebRequest 'https://raw.githubusercontent.com/techspence/ScriptSentry/mai
 /\____) || (____/\| ) \ \_____) (___| )         | |   /\____) || (____/\| )  \  |   | |   | ) \ \__   | |
 \_______)(_______/|/   \__/\_______/|/          )_(   \_______)(_______/|/    )_)   )_(   |/   \__/   \_/
                               by: Spencer Alessi @techspence
-                                          v0.5
+                                          v0.6
                                       __,_______
                                      / __.==---/ * * * * * *
                                     / (-'

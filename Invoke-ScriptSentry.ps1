@@ -1,3 +1,4 @@
+function Invoke-ScriptSentry{
 <#
 .SYNOPSIS
 ScriptSentry finds misconfigured and dangerous logon scripts.
@@ -1532,7 +1533,7 @@ function Show-Results {
     }
 }
 
-Get-Art -Version '0.5'
+Get-Art -Version '0.6'
 
 $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator|NT SERVICE\\TrustedInstaller|Domain Admins|Server Operators|Enterprise Admins|CREATOR OWNER'
 $AdminGroups = @("Account Operators", "Administrators", "Backup Operators", "Cryptographic Operators", "Distributed COM Users", "Domain Admins", "Domain Controllers", "Enterprise Admins", "Print Operators", "Schema Admins", "Server Operators")
@@ -1545,40 +1546,60 @@ $LogonScripts = Get-LogonScripts
 # Get a list of all GPO logon scripts
 $GPOLogonScripts = Get-GPOLogonScripts
 
-# Find logon scripts (.bat, .vbs, .cmd, .ps1, .kix) that contain unc paths (e.g. \\srv01\fileshare1)
-$UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
+if ($LogonScripts) {
+    # Find logon scripts (.bat, .vbs, .cmd, .ps1, .kix) that contain unc paths (e.g. \\srv01\fileshare1)
+    $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
 
-# Find mapped drives (e.g. \\srv01\fileshare1, \\srv02\fileshare2\accounting)
-$MappedDrives = Find-MappedDrives -LogonScripts $LogonScripts
+    # Find mapped drives (e.g. \\srv01\fileshare1, \\srv02\fileshare2\accounting)
+    $MappedDrives = Find-MappedDrives -LogonScripts $LogonScripts
 
-# Find nonexistent shares
-$NonExistentSharesScripts = Find-NonexistentShares -LogonScripts $LogonScripts -AdminUsers $AdminUsers
-$NonExistentShares = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Potentially'} | Sort-Object -Property Share -Unique
+    # Find nonexistent shares
+    $NonExistentSharesScripts = Find-NonexistentShares -LogonScripts $LogonScripts -AdminUsers $AdminUsers
+    $NonExistentShares = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Potentially'} | Sort-Object -Property Share -Unique
 
-# Find Exploitable logon scripts
-$ExploitableLogonScripts = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Yes'}
+    # Find unsafe permissions on logon scripts
+    $UnsafeLogonScripts = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts -SafeUsersList $SafeUsers
 
-# Find unsafe permissions for unc files found in logon scripts
-$UnsafeUNCPermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts -SafeUsersList $SafeUsers
+    # Find credentials in logon scripts
+    $Credentials = Find-LogonScriptCredentials -LogonScripts $LogonScripts
+} else {
+    Write-Host "[i] No logon scripts found!`n" -ForegroundColor Cyan
+}
 
-# Find unsafe permissions for unc paths found in logon scripts
-$UnsafeMappedDrives = Find-UnsafeUNCPermissions -UNCScripts $MappedDrives -SafeUsersList $SafeUsers
+if ($NonExistentShares) {
+    # Find Exploitable logon scripts
+    $ExploitableLogonScripts = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Yes'}
+} else {
+    Write-Host "[i] No non-existent shares found!`n" -ForegroundColor Cyan
+}
+
+if ($UNCScripts) {
+    # Find unsafe permissions for unc files found in logon scripts
+    $UnsafeUNCPermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts -SafeUsersList $SafeUsers
+} else {
+    Write-Host "[i] No UNC files found!`n" -ForegroundColor Cyan
+}
+
+if ($MappedDrives) {
+    # Find unsafe permissions for unc paths found in logon scripts
+    $UnsafeMappedDrives = Find-UnsafeUNCPermissions -UNCScripts $MappedDrives -SafeUsersList $SafeUsers
+} else {
+    Write-Host "[i] No mapped drives found!`n" -ForegroundColor Cyan
+}
 
 # Find unsafe NETLOGON & SYSVOL share permissions
 $NetlogonSysvol = Get-NetlogonSysvol
 $UnsafeNetlogonSysvol = Find-UnsafeUNCPermissions -UNCScripts $NetlogonSysvol -SafeUsersList $SafeUsers
 
-# Find unsafe permissions on logon scripts
-$UnsafeLogonScripts = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts -SafeUsersList $SafeUsers
-
-# Find unsafe permissions on GPO logon scripts
-$UnsafeGPOLogonScripts = Find-UnsafeGPOLogonScriptPermissions -GPOLogonScripts $GPOLogonScripts -SafeUsersList $SafeUsers
+if ($GPOLogonScripts) {
+    # Find unsafe permissions on GPO logon scripts
+    $UnsafeGPOLogonScripts = Find-UnsafeGPOLogonScriptPermissions -GPOLogonScripts $GPOLogonScripts -SafeUsersList $SafeUsers
+} else {
+    Write-Host "[i] No GPO logon scripts found!`n" -ForegroundColor Cyan
+}
 
 # Find admins that have logon scripts assigned
 $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
-
-# Find credentials in logon scripts
-$Credentials = Find-LogonScriptCredentials -LogonScripts $LogonScripts
 
 # Show all results
 if ($UnsafeMappedDrives) {Show-Results $UnsafeMappedDrives}
@@ -1592,13 +1613,43 @@ if ($AdminLogonScripts) {Show-Results $AdminLogonScripts}
 if ($ExploitableLogonScripts) {Show-Results $ExploitableLogonScripts}
 
 if ($SaveOutput) {
-    if ($UnsafeMappedDrives) {$UnsafeMappedDrives | Export-CSV -NoTypeInformation UnsafeMappedDrives.csv}
-    if ($UnsafeLogonScripts) {$UnsafeLogonScripts | Export-CSV -NoTypeInformation UnsafeLogonScripts.csv}
-    if ($UnsafeGPOLogonScripts) {$UnsafeGPOLogonScripts | Export-Csv -NoTypeInformation UnsafeGPOLogonScripts.csv}
-    if ($UnsafeUNCPermissions) {$UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv}
-    if ($UnsafeNetlogonSysvol) {$UnsafeNetlogonSysvol | Export-Csv -NoTypeInformation UnsafeNetlogonSysvol.csv}
-    if ($AdminLogonScripts) {$AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv}
-    if ($Credentials) {$Credentials | Export-CSV -NoTypeInformation Credentials.csv}
-    if ($NonExistentShares) {$NonExistentShares | Export-CSV -NoTypeInformation NonExistentShares.csv}
-    if ($ExploitableLogonScripts) {$ExploitableLogonScripts | Export-CSV -NoTypeInformation ExploitableLogonScripts.csv}
+    if ($UnsafeMappedDrives) {
+        Write-Host "[i] Saving UnsafeMappedDrives.csv to the current directory" -ForegroundColor Cyan
+        $UnsafeMappedDrives | Export-CSV -NoTypeInformation UnsafeMappedDrives.csv
+    }
+    if ($UnsafeLogonScripts) {
+        Write-Host "[i] Saving UnsafeLogonScripts.csv to the current directory" -ForegroundColor Cyan
+        $UnsafeLogonScripts | Export-CSV -NoTypeInformation UnsafeLogonScripts.csv
+    }
+    if ($UnsafeGPOLogonScripts) {
+        Write-Host "[i] Saving UnsafeGPOLogonScripts.csv to the current directory" -ForegroundColor Cyan
+        $UnsafeGPOLogonScripts | Export-Csv -NoTypeInformation UnsafeGPOLogonScripts.csv
+    }
+    if ($UnsafeUNCPermissions) {
+        Write-Host "[i] Saving UnsafeUNCPermissions.csv to the current directory" -ForegroundColor Cyan
+        $UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv
+    }
+    if ($UnsafeNetlogonSysvol) {
+        Write-Host "[i] Saving UnsafeNetlogonSysvol.csv to the current directory" -ForegroundColor Cyan
+        $UnsafeNetlogonSysvol | Export-Csv -NoTypeInformation UnsafeNetlogonSysvol.csv
+    }
+    if ($AdminLogonScripts) {
+        Write-Host "[i] Saving AdminLogonScripts.csv to the current directory" -ForegroundColor Cyan
+        $AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv
+    }
+    if ($Credentials) {
+        Write-Host "[i] Saving Credentials.csv to the current directory" -ForegroundColor Cyan
+        $Credentials | Export-CSV -NoTypeInformation Credentials.csv
+    }
+    if ($NonExistentShares) {
+        Write-Host "[i] Saving NonExistentShares.csv to the current directory" -ForegroundColor Cyan
+        $NonExistentShares | Export-CSV -NoTypeInformation NonExistentShares.csv
+    }
+    if ($ExploitableLogonScripts) {
+        Write-Host "[i] Saving ExploitableLogonScripts.csv to the current directory" -ForegroundColor Cyan
+        $ExploitableLogonScripts | Export-CSV -NoTypeInformation ExploitableLogonScripts.csv
+    }
+
+    Get-ChildItem -Filter "*.csv" -File
+}
 }
