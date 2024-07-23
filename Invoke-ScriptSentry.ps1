@@ -1506,6 +1506,7 @@ function Find-UnsafeGPOLogonScriptPermissions {
         }
     }
 }
+
 function Show-Results {
     [CmdletBinding()]
     param(
