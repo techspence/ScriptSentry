@@ -16,3 +16,4 @@ Lib/Default/*
 Lib/Standard/*
 Lib/Core/*
 Private/*
+*.csv
