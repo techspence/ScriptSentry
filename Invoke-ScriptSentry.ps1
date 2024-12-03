@@ -1334,15 +1334,17 @@ function Find-NonexistentShares {
 function Find-AdminsNonexistentShares {
     [CmdletBinding()]
     param (
+        [array]$NonExistentShares,
         [array]$AdminUsers
     )
     $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
     $AdminsNonexistentShares = @()
     [Array] $AdminsNonexistentShares = foreach ($Finding in $AdminLogonScripts) {
-        if ($Finding.Details -match $NonExistentShares.Details) {
-            $Admin = (($Finding.Details | Select-String "(CN=.*)\s").Matches.Value).Trim(' - ')
-            $LogonScript = (($Finding.Details | Select-String "\s-\s.*$").Matches.Value).Trim(' - ')
-            $Share = ($NonExistentShares.Details | Select-String '\\\\[\w\.\-]+\\[\w\-_\\.]+').Matches.Value
+        $Admin = (($Finding.Details | Select-String "(CN=.*)\s").Matches.Value).Trim(' - ')
+        $LogonScript = (($Finding.Details | Select-String "\s-\s.*$").Matches.Value).Trim(' - ')
+        $Share = ($NonExistentShares.Details | Select-String '\\\\[\w\.\-]+\\[\w\-_\\.]+').Matches.Value
+        $ShareScript = (($NonExistentShares.Details | Select-String "\s.*$").Matches.Value).Replace('mapped in ','')
+        if ($LogonScript -match $ShareScript) {
             $Results = [ordered] @{
                 Misconfiguration = 'LSM-Admins-2'
                 Description = "Admins with logon scripts mapped from nonexistent share"
@@ -1593,7 +1595,7 @@ if ($LogonScripts) {
     #$NonExistentShares = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Potentially'} | Sort-Object -Property Share -Unique
 
     # Find admins with nonexistent shares
-    $AdminsNonExistentShares = Find-AdminsNonexistentShares -AdminUsers $AdminUsers
+    $AdminsNonExistentShares = Find-AdminsNonexistentShares -NonExistentShares $NonExistentShares -AdminUsers $AdminUsers
 
     # Find unsafe permissions on logon scripts
     $UnsafeLogonScripts = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts -SafeUsersList $SafeUsers
