@@ -1320,11 +1320,6 @@ function Find-NonexistentShares {
         $temp = Get-Content $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern '.*net use.*','New-SmbMapping','.MapNetworkDrive' | ForEach-Object { $_.Matches.Value }
         $temp = $temp | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value }
         $temp | ForEach-Object {
-            <#$ServerList = [ordered] @{
-                Server = $_ -split '\\' | Where-Object {$_ -ne ""} | Select-Object -First 1
-                Share = $_
-                Script = $Script.FullName
-            }#>
             $Share = $_
             $Results = [ordered] @{
                 Misconfiguration = 'LSM-Shares'
@@ -1339,12 +1334,11 @@ function Find-NonexistentShares {
 function Find-AdminsNonexistentShares {
     [CmdletBinding()]
     param (
-        [array]$NonExistentShares,
         [array]$AdminUsers
     )
     $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
     $AdminsNonexistentShares = @()
-    foreach ($Finding in $AdminLogonScripts) {
+    [Array] $AdminsNonexistentShares = foreach ($Finding in $AdminLogonScripts) {
         if ($Finding.Details -match $NonExistentShares.Details) {
             $Admin = (($Finding.Details | Select-String "(CN=.*)\s").Matches.Value).Trim(' - ')
             $LogonScript = (($Finding.Details | Select-String "\s-\s.*$").Matches.Value).Trim(' - ')
@@ -1599,7 +1593,7 @@ if ($LogonScripts) {
     #$NonExistentShares = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Potentially'} | Sort-Object -Property Share -Unique
 
     # Find admins with nonexistent shares
-    $AdminsNonExistentShares = Find-AdminsNonexistentShares -NonExistentShares $NonExistentShares -AdminUsers $AdminUsers
+    $AdminsNonExistentShares = Find-AdminsNonexistentShares -AdminUsers $AdminUsers
 
     # Find unsafe permissions on logon scripts
     $UnsafeLogonScripts = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts -SafeUsersList $SafeUsers
