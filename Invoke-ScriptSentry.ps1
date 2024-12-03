@@ -1343,8 +1343,9 @@ function Find-AdminsNonexistentShares {
         $Admin = (($Finding.Details | Select-String "(CN=.*)\s").Matches.Value).Trim(' - ')
         $LogonScript = (($Finding.Details | Select-String "\s-\s.*$").Matches.Value).Trim(' - ')
         $Share = ($NonExistentShares.Details | Select-String '\\\\[\w\.\-]+\\[\w\-_\\.]+').Matches.Value
-        $ShareScript = (($NonExistentShares.Details | Select-String "\s.*$").Matches.Value).Replace('mapped in ','')
+        $ShareScript = (($NonExistentShares.Details | Select-String "\s.*$").Matches.Value).Replace('mapped in ','').TrimStart() | Sort-Object -Unique
         if ($LogonScript -match $ShareScript) {
+            Write-Host "here"
             $Results = [ordered] @{
                 Misconfiguration = 'LSM-Admins-2'
                 Description = "Admins with logon scripts mapped from nonexistent share"
