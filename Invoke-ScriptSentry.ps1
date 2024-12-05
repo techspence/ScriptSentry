@@ -1338,20 +1338,22 @@ function Find-AdminsNonexistentShares {
         [array]$AdminUsers
     )
     $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
+    # $Share = ($NonExistentShares.Details | Select-String '\\\\[\w\.\-]+\\[\w\-_\\.]+').Matches.Value
+    # $ShareScript = (($NonExistentShares.Details | Select-String "\s.*$").Matches.Value).Replace('mapped in ','').TrimStart() | Sort-Object -Unique
     $AdminsNonexistentShares = @()
-    [Array] $AdminsNonexistentShares = foreach ($Finding in $AdminLogonScripts) {
-        $Admin = (($Finding.Details | Select-String "(CN=.*)\s").Matches.Value).Trim(' - ')
-        $LogonScript = (($Finding.Details | Select-String "\s-\s.*$").Matches.Value).Trim(' - ')
-        $Share = ($NonExistentShares.Details | Select-String '\\\\[\w\.\-]+\\[\w\-_\\.]+').Matches.Value
-        $ShareScript = (($NonExistentShares.Details | Select-String "\s.*$").Matches.Value).Replace('mapped in ','').TrimStart() | Sort-Object -Unique
-        if ($LogonScript -match $ShareScript) {
-            Write-Host "here"
-            $Results = [ordered] @{
-                Misconfiguration = 'LSM-Admins-2'
-                Description = "Admins with logon scripts mapped from nonexistent share"
-                Details = "$Admin - $LogonScript mapping $Share"
+    [Array] $AdminsNonexistentShares = foreach ($Admin in $AdminLogonScripts) {
+        $AdminDN = (($Admin.Details | Select-String "(CN=.*)\s").Matches.Value).Trim(' - ')
+        $LogonScript = (($Admin.Details | Select-String "\s-\s.*$").Matches.Value).Trim(' - ')
+        foreach ($Share in $NonExistentShares) {
+            if ($Share.Details -match $LogonScript) {
+                $SharePath = ($Share.Details | Select-String '\\\\[\w\.\-]+\\[\w\-_\\.]+').Matches.Value
+                $Results = [ordered] @{
+                    Misconfiguration = 'LSM-Admins-2'
+                    Description = "Admins with logon scripts mapped from nonexistent share"
+                    Details = "$AdminDN - $LogonScript mapping $SharePath"
+                }
+                [pscustomobject] $Results
             }
-            [pscustomobject] $Results
         }
     }
   
@@ -1406,6 +1408,7 @@ function Find-UnsafeUNCPermissions {
     $UnsafeRights = 'FullControl|Modify|Write'
     $SafeUsers = $SafeUsersList
     foreach ($script in $UNCScripts){
+        # Write-Host $script
         # "Checking $script for unsafe permissions.."
         $ACL = (Get-Acl $script -ErrorAction SilentlyContinue).Access
         foreach ($entry in $ACL) {
@@ -1430,7 +1433,8 @@ function Find-UnsafeUNCPermissions {
                         Details = "$User with $Rights on $Folder"
                     }
                     [pscustomobject] $Results | Sort-Object -Unique
-                } elseif ($script -match '\.') {
+                <} 
+                    elseif ($script -match '\.') {
                     $Type = 'UnsafeUNCFilePermission'
                     <#$Results = [ordered] @{
                         Type = $Type
@@ -1609,7 +1613,7 @@ if ($LogonScripts) {
 
 if ($NonExistentShares) {
     # Find Exploitable logon scripts
-    $ExploitableLogonScripts = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Yes'}
+    # $ExploitableLogonScripts = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Yes'}
 } else {
     Write-Host "[i] No non-existent shares found!`n" -ForegroundColor Cyan
 }
@@ -1622,7 +1626,7 @@ if ($UNCScripts) {
 }
 
 if ($MappedDrives) {
-    # Find unsafe permissions for unc paths found in logon scripts
+    # Find unsafe permissions for unc folders found in logon scripts
     $UnsafeMappedDrives = Find-UnsafeUNCPermissions -UNCScripts $MappedDrives -SafeUsersList $SafeUsers
 } else {
     Write-Host "[i] No mapped drives found!`n" -ForegroundColor Cyan
@@ -1643,16 +1647,16 @@ if ($GPOLogonScripts) {
 $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
 
 # Show all results
+if ($Credentials) {Show-Results $Credentials}
 if ($UnsafeMappedDrives) {Show-Results $UnsafeMappedDrives}
-if ($UnsafeLogonScripts) {Show-Results $UnsafeLogonScripts}
-if ($UnsafeGPOLogonScripts) {Show-Results $UnsafeGPOLogonScripts}
 if ($UnsafeUNCPermissions) {Show-Results $UnsafeUNCPermissions}
 if ($UnsafeNetlogonSysvol) {Show-Results $UnsafeNetlogonSysvol}
-if ($Credentials) {Show-Results $Credentials}
+if ($UnsafeLogonScripts) {Show-Results $UnsafeLogonScripts}
+if ($UnsafeGPOLogonScripts) {Show-Results $UnsafeGPOLogonScripts}
 if ($NonExistentShares) {Show-Results $NonExistentShares}
 if ($AdminLogonScripts) {Show-Results $AdminLogonScripts}
 if ($AdminsNonExistentShares) {Show-Results $AdminsNonExistentShares}
-if ($ExploitableLogonScripts) {Show-Results $ExploitableLogonScripts}
+# if ($ExploitableLogonScripts) {Show-Results $ExploitableLogonScripts}
 
 if ($SaveOutput) {
     if ($OutputDirectory){
