@@ -1324,7 +1324,6 @@ function Find-NonexistentShares {
     [Array] $LogonScriptShares = foreach ($script in $LogonScripts) {
         $temp = Get-Content $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern '.*net use.*','New-SmbMapping','.MapNetworkDrive' | ForEach-Object { $_.Matches.Value }
         $temp = $temp | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value }
-        Write-Host $temp
         $temp | ForEach-Object {
             $ServerList = [ordered] @{
                 Server = $_ -split '\\' | Where-Object {$_ -ne ""} | Select-Object -First 1
