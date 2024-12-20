@@ -1326,11 +1326,11 @@ function Find-NonexistentShares {
         $temp = $temp | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value }
         $temp | ForEach-Object {
             $ServerList = [ordered] @{
-                Server = $_ -split '\\' | Where-Object {$_ -ne ""} | Select-Object -First 1
+                Server = (($_ -split '\\') | Where-Object {$_ -ne ""})[0]
                 Share = $_
                 Script = $Script.FullName
             }
-            [pscustomobject] $ServerList | Sort-Object -Unique -Property Server
+            [pscustomobject] $ServerList
         }
     }
 
@@ -1338,6 +1338,7 @@ function Find-NonexistentShares {
 
     $NonExistentShares = @()
     [Array] $NonExistentShares = foreach ($LogonScriptShare in $LogonScriptShares) {
+        $ServerWithoutDNS = $null
         try { 
             $DNSEntry = [System.Net.DNS]::GetHostByName($LogonScriptShare.Server)
         } catch {
