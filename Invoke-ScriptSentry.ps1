@@ -18,6 +18,9 @@ Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
 .EXAMPLE
 Invoke-ScriptSentry -SaveOutput $true
 
+.EXAMPLE
+Invoke-ScriptSentry -SaveOutput $true -OutputDirectory c:\ScriptSentry
+
 #>
 [CmdletBinding()]
 Param(
@@ -1110,28 +1113,29 @@ A custom PSObject with LDAP hashtable properties translated.
         $Properties
     )
 
-    $ObjectProperties = @{}
+    PROCESS {
+        $ObjectProperties = @{}
 
-    $Properties.PropertyNames | ForEach-Object {
-        if ($_ -ne 'adspath') {
-            if (($_ -eq 'objectsid') -or ($_ -eq 'sidhistory')) {
-                # convert all listed sids (i.e. if multiple are listed in sidHistory)
-                #$ObjectProperties[$_] = $Properties[$_] | ForEach-Object { (New-Object System.Security.Principal.SecurityIdentifier($_, 0)).Value }
-            }
-            elseif ($_ -eq 'grouptype') {
+        $Properties.PropertyNames | ForEach-Object {
+            if ($_ -ne 'adspath') {
+                if (($_ -eq 'objectsid') -or ($_ -eq 'sidhistory')) {
+                    # convert all listed sids (i.e. if multiple are listed in sidHistory)
+                    #$ObjectProperties[$_] = $Properties[$_] | ForEach-Object { (New-Object System.Security.Principal.SecurityIdentifier($_, 0)).Value }
+                }
+                        elseif ($_ -eq 'grouptype') {
                 #$ObjectProperties[$_] = $Properties[$_][0] -as $GroupTypeEnum
             }
-            elseif ($_ -eq 'samaccounttype') {
+                        elseif ($_ -eq 'samaccounttype') {
                 #$ObjectProperties[$_] = $Properties[$_][0] -as $SamAccountTypeEnum
             }
-            elseif ($_ -eq 'objectguid') {
+                            elseif ($_ -eq 'objectguid') {
                 # convert the GUID to a string
                 #$ObjectProperties[$_] = (New-Object Guid (,$Properties[$_][0])).Guid
             }
-            elseif ($_ -eq 'useraccountcontrol') {
+                        elseif ($_ -eq 'useraccountcontrol') {
                 #$ObjectProperties[$_] = $Properties[$_][0] -as $UACEnum
             }
-            elseif ($_ -eq 'ntsecuritydescriptor') {
+                                                                            elseif ($_ -eq 'ntsecuritydescriptor') {
                 # $ObjectProperties[$_] = New-Object Security.AccessControl.RawSecurityDescriptor -ArgumentList $Properties[$_][0], 0
                 $Descriptor = New-Object Security.AccessControl.RawSecurityDescriptor -ArgumentList $Properties[$_][0], 0
                 if ($Descriptor.Owner) {
@@ -1147,7 +1151,7 @@ A custom PSObject with LDAP hashtable properties translated.
                     $ObjectProperties['SystemAcl'] = $Descriptor.SystemAcl
                 }
             }
-            elseif ($_ -eq 'accountexpires') {
+                                            elseif ($_ -eq 'accountexpires') {
                 if ($Properties[$_][0] -gt [DateTime]::MaxValue.Ticks) {
                     $ObjectProperties[$_] = "NEVER"
                 }
@@ -1155,7 +1159,7 @@ A custom PSObject with LDAP hashtable properties translated.
                     $ObjectProperties[$_] = [datetime]::fromfiletime($Properties[$_][0])
                 }
             }
-            elseif ( ($_ -eq 'lastlogon') -or ($_ -eq 'lastlogontimestamp') -or ($_ -eq 'pwdlastset') -or ($_ -eq 'lastlogoff') -or ($_ -eq 'badPasswordTime') ) {
+                                                                    elseif ( ($_ -eq 'lastlogon') -or ($_ -eq 'lastlogontimestamp') -or ($_ -eq 'pwdlastset') -or ($_ -eq 'lastlogoff') -or ($_ -eq 'badPasswordTime') ) {
                 # convert timestamps
                 if ($Properties[$_][0] -is [System.MarshalByRefObject]) {
                     # if we have a System.__ComObject
@@ -1169,7 +1173,7 @@ A custom PSObject with LDAP hashtable properties translated.
                     $ObjectProperties[$_] = ([datetime]::FromFileTime(($Properties[$_][0])))
                 }
             }
-            elseif ($Properties[$_][0] -is [System.MarshalByRefObject]) {
+                                                                    elseif ($Properties[$_][0] -is [System.MarshalByRefObject]) {
                 # try to convert misc com objects
                 $Prop = $Properties[$_]
                 try {
@@ -1183,19 +1187,20 @@ A custom PSObject with LDAP hashtable properties translated.
                     $ObjectProperties[$_] = $Prop[$_]
                 }
             }
-            elseif ($Properties[$_].count -eq 1) {
+                        elseif ($Properties[$_].count -eq 1) {
                 $ObjectProperties[$_] = $Properties[$_][0]
             }
-            else {
+                        else {
                 $ObjectProperties[$_] = $Properties[$_]
             }
+            }
         }
-    }
-    try {
+                try {
         New-Object -TypeName PSObject -Property $ObjectProperties
     }
-    catch {
+                catch {
         Write-Warning "[Convert-LDAPProperty] Error parsing LDAP properties : $_"
+    }
     }
 }
 function Find-AdminLogonScripts {
@@ -1205,7 +1210,7 @@ function Find-AdminLogonScripts {
     ) 
     # Enabled user accounts
     Foreach ($Admin in $AdminUsers) {
-        $AdminLogonScripts = Get-DomainUser -Identity $Admin.MemberName | Where-Object { $_.scriptPath -ne $null}
+        $AdminLogonScripts = Get-DomainUser -Identity $Admin.MemberName | Where-Object { $null -ne $_.scriptPath }
         
         # "`n[!] Admins found with logon scripts"
         $AdminLogonScripts | Foreach-object {
@@ -1310,7 +1315,6 @@ function Find-MappedDrives {
 
     $Shares | Sort-Object -Unique
 }
-
 function Find-NonexistentShares {
     [CmdletBinding()]
     param (
@@ -1320,15 +1324,18 @@ function Find-NonexistentShares {
     [Array] $LogonScriptShares = foreach ($script in $LogonScripts) {
         $temp = Get-Content $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern '.*net use.*','New-SmbMapping','.MapNetworkDrive' | ForEach-Object { $_.Matches.Value }
         $temp = $temp | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value }
+        Write-Host $temp
         $temp | ForEach-Object {
             $ServerList = [ordered] @{
                 Server = $_ -split '\\' | Where-Object {$_ -ne ""} | Select-Object -First 1
                 Share = $_
                 Script = $Script.FullName
             }
-            [pscustomobject] $ServerList
+            [pscustomobject] $ServerList | Sort-Object -Unique -Property Server
         }
     }
+
+    $LogonScriptShares = $LogonScriptShares | Sort-Object -Property Server -Unique
 
     $NonExistentShares = @()
     [Array] $NonExistentShares = foreach ($LogonScriptShare in $LogonScriptShares) {
@@ -1344,11 +1351,10 @@ function Find-NonexistentShares {
                 Details = "$($ServerWithoutDNS.Server) mapped in $($ServerWithoutDNS.Script)"
             }
             [pscustomobject] $Results
-            $ServerWithoutDNS
         }
     }
+    $NonExistentShares
 }
-
 function Find-AdminsNonexistentShares {
     [CmdletBinding()]
     param (
@@ -1451,7 +1457,7 @@ function Find-UnsafeUNCPermissions {
                         Details = "$User with $Rights on $Folder"
                     }
                     [pscustomobject] $Results | Sort-Object -Unique
-                <} 
+                } 
                     elseif ($script -match '\.') {
                     $Type = 'UnsafeUNCFilePermission'
                     <#$Results = [ordered] @{
@@ -1565,7 +1571,6 @@ function Find-UnsafeGPOLogonScriptPermissions {
         }
     }
 }
-
 function Show-Results {
     [CmdletBinding()]
     param(
