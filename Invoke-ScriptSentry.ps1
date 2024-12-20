@@ -1310,6 +1310,7 @@ function Find-MappedDrives {
 
     $Shares | Sort-Object -Unique
 }
+
 function Find-NonexistentShares {
     [CmdletBinding()]
     param (
@@ -1320,17 +1321,34 @@ function Find-NonexistentShares {
         $temp = Get-Content $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern '.*net use.*','New-SmbMapping','.MapNetworkDrive' | ForEach-Object { $_.Matches.Value }
         $temp = $temp | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value }
         $temp | ForEach-Object {
-            $Share = $_
+            $ServerList = [ordered] @{
+                Server = $_ -split '\\' | Where-Object {$_ -ne ""} | Select-Object -First 1
+                Share = $_
+                Script = $Script.FullName
+            }
+            [pscustomobject] $ServerList
+        }
+    }
+
+    $NonExistentShares = @()
+    [Array] $NonExistentShares = foreach ($LogonScriptShare in $LogonScriptShares) {
+        try { 
+            $DNSEntry = [System.Net.DNS]::GetHostByName($LogonScriptShare.Server)
+        } catch {
+            $ServerWithoutDNS = $LogonScriptShare
+        }
+        if ($ServerWithoutDNS) {
             $Results = [ordered] @{
                 Misconfiguration = 'LSM-Shares'
                 Description = "Non-existent shares"
-                Details = "$Share mapped in $Script"
+                Details = "$($ServerWithoutDNS.Server) mapped in $($ServerWithoutDNS.Script)"
             }
             [pscustomobject] $Results
+            $ServerWithoutDNS
         }
     }
-    $LogonScriptShares
 }
+
 function Find-AdminsNonexistentShares {
     [CmdletBinding()]
     param (
