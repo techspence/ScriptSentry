@@ -18,10 +18,14 @@ Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
 .EXAMPLE
 Invoke-ScriptSentry -SaveOutput $true
 
+.EXAMPLE
+Invoke-ScriptSentry -SaveOutput $true -OutputDirectory c:\ScriptSentry
+
 #>
 [CmdletBinding()]
 Param(
-    [boolean]$SaveOutput = $false
+    [boolean]$SaveOutput = $false,
+    [string]$OutputDirectory = ''
 )
     
 function Get-ForestDomains {
@@ -1109,28 +1113,29 @@ A custom PSObject with LDAP hashtable properties translated.
         $Properties
     )
 
-    $ObjectProperties = @{}
+    PROCESS {
+        $ObjectProperties = @{}
 
-    $Properties.PropertyNames | ForEach-Object {
-        if ($_ -ne 'adspath') {
-            if (($_ -eq 'objectsid') -or ($_ -eq 'sidhistory')) {
-                # convert all listed sids (i.e. if multiple are listed in sidHistory)
-                #$ObjectProperties[$_] = $Properties[$_] | ForEach-Object { (New-Object System.Security.Principal.SecurityIdentifier($_, 0)).Value }
-            }
-            elseif ($_ -eq 'grouptype') {
+        $Properties.PropertyNames | ForEach-Object {
+            if ($_ -ne 'adspath') {
+                if (($_ -eq 'objectsid') -or ($_ -eq 'sidhistory')) {
+                    # convert all listed sids (i.e. if multiple are listed in sidHistory)
+                    #$ObjectProperties[$_] = $Properties[$_] | ForEach-Object { (New-Object System.Security.Principal.SecurityIdentifier($_, 0)).Value }
+                }
+                        elseif ($_ -eq 'grouptype') {
                 #$ObjectProperties[$_] = $Properties[$_][0] -as $GroupTypeEnum
             }
-            elseif ($_ -eq 'samaccounttype') {
+                        elseif ($_ -eq 'samaccounttype') {
                 #$ObjectProperties[$_] = $Properties[$_][0] -as $SamAccountTypeEnum
             }
-            elseif ($_ -eq 'objectguid') {
+                            elseif ($_ -eq 'objectguid') {
                 # convert the GUID to a string
                 #$ObjectProperties[$_] = (New-Object Guid (,$Properties[$_][0])).Guid
             }
-            elseif ($_ -eq 'useraccountcontrol') {
+                        elseif ($_ -eq 'useraccountcontrol') {
                 #$ObjectProperties[$_] = $Properties[$_][0] -as $UACEnum
             }
-            elseif ($_ -eq 'ntsecuritydescriptor') {
+                                                                            elseif ($_ -eq 'ntsecuritydescriptor') {
                 # $ObjectProperties[$_] = New-Object Security.AccessControl.RawSecurityDescriptor -ArgumentList $Properties[$_][0], 0
                 $Descriptor = New-Object Security.AccessControl.RawSecurityDescriptor -ArgumentList $Properties[$_][0], 0
                 if ($Descriptor.Owner) {
@@ -1146,7 +1151,7 @@ A custom PSObject with LDAP hashtable properties translated.
                     $ObjectProperties['SystemAcl'] = $Descriptor.SystemAcl
                 }
             }
-            elseif ($_ -eq 'accountexpires') {
+                                            elseif ($_ -eq 'accountexpires') {
                 if ($Properties[$_][0] -gt [DateTime]::MaxValue.Ticks) {
                     $ObjectProperties[$_] = "NEVER"
                 }
@@ -1154,7 +1159,7 @@ A custom PSObject with LDAP hashtable properties translated.
                     $ObjectProperties[$_] = [datetime]::fromfiletime($Properties[$_][0])
                 }
             }
-            elseif ( ($_ -eq 'lastlogon') -or ($_ -eq 'lastlogontimestamp') -or ($_ -eq 'pwdlastset') -or ($_ -eq 'lastlogoff') -or ($_ -eq 'badPasswordTime') ) {
+                                                                    elseif ( ($_ -eq 'lastlogon') -or ($_ -eq 'lastlogontimestamp') -or ($_ -eq 'pwdlastset') -or ($_ -eq 'lastlogoff') -or ($_ -eq 'badPasswordTime') ) {
                 # convert timestamps
                 if ($Properties[$_][0] -is [System.MarshalByRefObject]) {
                     # if we have a System.__ComObject
@@ -1168,7 +1173,7 @@ A custom PSObject with LDAP hashtable properties translated.
                     $ObjectProperties[$_] = ([datetime]::FromFileTime(($Properties[$_][0])))
                 }
             }
-            elseif ($Properties[$_][0] -is [System.MarshalByRefObject]) {
+                                                                    elseif ($Properties[$_][0] -is [System.MarshalByRefObject]) {
                 # try to convert misc com objects
                 $Prop = $Properties[$_]
                 try {
@@ -1182,19 +1187,20 @@ A custom PSObject with LDAP hashtable properties translated.
                     $ObjectProperties[$_] = $Prop[$_]
                 }
             }
-            elseif ($Properties[$_].count -eq 1) {
+                        elseif ($Properties[$_].count -eq 1) {
                 $ObjectProperties[$_] = $Properties[$_][0]
             }
-            else {
+                        else {
                 $ObjectProperties[$_] = $Properties[$_]
             }
+            }
         }
-    }
-    try {
+                try {
         New-Object -TypeName PSObject -Property $ObjectProperties
     }
-    catch {
+                catch {
         Write-Warning "[Convert-LDAPProperty] Error parsing LDAP properties : $_"
+    }
     }
 }
 function Find-AdminLogonScripts {
@@ -1204,15 +1210,21 @@ function Find-AdminLogonScripts {
     ) 
     # Enabled user accounts
     Foreach ($Admin in $AdminUsers) {
-        $AdminLogonScripts = Get-DomainUser -Identity $Admin.MemberName | Where-Object { $_.scriptPath -ne $null}
+        $AdminLogonScripts = Get-DomainUser -Identity $Admin.MemberName | Where-Object { $null -ne $_.scriptPath }
         
         # "`n[!] Admins found with logon scripts"
         $AdminLogonScripts | Foreach-object {
-            $Results = [ordered] @{
+            <# $Results = [ordered] @{
                 Type = 'AdminLogonScript'
                 User = $_.distinguishedname
                 LogonScript = $_.scriptpath
+            }#>
+            $Results = [ordered] @{
+                Misconfiguration = 'LSM-Admins-1'
+                Description = "Admins with logonscripts"
+                Details = "$($_.distinguishedname) - $($_.scriptpath)"
             }
+
             [pscustomobject] $Results
         }
     }
@@ -1229,10 +1241,15 @@ function Find-LogonScriptCredentials {
         if ($Credentials) {
             # "`n[!] CREDENTIALS FOUND!"
             $Credentials | ForEach-Object {
-                $Results = [ordered] @{
+                <#$Results = [ordered] @{
                     Type = 'Credentials'
                     File = $script.FullName
                     Credential = $_
+                }#>
+                $Results = [ordered] @{
+                    Misconfiguration = 'LSM-Creds'
+                    Description = "Plaintext credentials within a logon script"
+                    Details = "$($script.FullName) - $_"
                 }
                 [pscustomobject] $Results | Sort-Object -Unique
             }
@@ -1301,8 +1318,7 @@ function Find-MappedDrives {
 function Find-NonexistentShares {
     [CmdletBinding()]
     param (
-        [array]$LogonScripts,
-        [array]$AdminUsers
+        [array]$LogonScripts
     )
     $LogonScriptShares = @()
     [Array] $LogonScriptShares = foreach ($script in $LogonScripts) {
@@ -1310,7 +1326,7 @@ function Find-NonexistentShares {
         $temp = $temp | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value }
         $temp | ForEach-Object {
             $ServerList = [ordered] @{
-                Server = $_ -split '\\' | Where-Object {$_ -ne ""} | Select-Object -First 1
+                Server = (($_ -split '\\') | Where-Object {$_ -ne ""})[0]
                 Share = $_
                 Script = $Script.FullName
             }
@@ -1318,52 +1334,54 @@ function Find-NonexistentShares {
         }
     }
 
-    $LogonScriptShares = $LogonScriptShares #| Sort-Object -Property Share -Unique
-    $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
-    $Admins = 'No'
-    $Exploitable = 'No'
+    $LogonScriptShares = $LogonScriptShares | Sort-Object -Property Server -Unique
 
     $NonExistentShares = @()
     [Array] $NonExistentShares = foreach ($LogonScriptShare in $LogonScriptShares) {
+        $ServerWithoutDNS = $null
         try { 
             $DNSEntry = [System.Net.DNS]::GetHostByName($LogonScriptShare.Server)
         } catch {
             $ServerWithoutDNS = $LogonScriptShare
         }
-
         if ($ServerWithoutDNS) {
-            foreach ($AdminScript in $AdminLogonScripts) {
-                if ((Get-Item $ServerWithoutDNS.Script).Name -match $AdminScript.LogonScript){
-                    $Admins = $AdminScript.User
-                    $Exploitable = 'Yes'
-                    $Results = [ordered] @{
-                        Type = 'ExploitableLogonScript'
-                        Server = $ServerWithoutDNS.Server
-                        Share = $ServerWithoutDNS.Share
-                        Script = $ServerWithoutDNS.Script
-                        DNS = 'No'
-                        Exploitable = $Exploitable
-                        Admins = $Admins
-                    }
-                } else {
-                    $Admins = 'No'
-                    $Exploitable = 'Potentially'
-                    $Results = [ordered] @{
-                        Type = 'NonexistentShare'
-                        Server = $ServerWithoutDNS.Server
-                        Share = $ServerWithoutDNS.Share
-                        Script = $ServerWithoutDNS.Script
-                        DNS = 'No'
-                        Exploitable = $Exploitable
-                        Admins = $Admins
-                    }
+            $Results = [ordered] @{
+                Misconfiguration = 'LSM-Shares'
+                Description = "Non-existent shares"
+                Details = "$($ServerWithoutDNS.Server) mapped in $($ServerWithoutDNS.Script)"
+            }
+            [pscustomobject] $Results
+        }
+    }
+    $NonExistentShares
+}
+function Find-AdminsNonexistentShares {
+    [CmdletBinding()]
+    param (
+        [array]$NonExistentShares,
+        [array]$AdminUsers
+    )
+    $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
+    # $Share = ($NonExistentShares.Details | Select-String '\\\\[\w\.\-]+\\[\w\-_\\.]+').Matches.Value
+    # $ShareScript = (($NonExistentShares.Details | Select-String "\s.*$").Matches.Value).Replace('mapped in ','').TrimStart() | Sort-Object -Unique
+    $AdminsNonexistentShares = @()
+    [Array] $AdminsNonexistentShares = foreach ($Admin in $AdminLogonScripts) {
+        $AdminDN = (($Admin.Details | Select-String "(CN=.*)\s").Matches.Value).Trim(' - ')
+        $LogonScript = (($Admin.Details | Select-String "\s-\s.*$").Matches.Value).Trim(' - ')
+        foreach ($Share in $NonExistentShares) {
+            if ($Share.Details -match $LogonScript) {
+                $SharePath = ($Share.Details | Select-String '\\\\[\w\.\-]+\\[\w\-_\\.]+').Matches.Value
+                $Results = [ordered] @{
+                    Misconfiguration = 'LSM-Admins-2'
+                    Description = "Admins with logon scripts mapped from nonexistent share"
+                    Details = "$AdminDN - $LogonScript mapping $SharePath"
                 }
                 [pscustomobject] $Results
             }
         }
     }
-
-    $NonExistentShares
+  
+    $AdminsNonexistentShares
 }
 function Find-UnsafeLogonScriptPermissions {
     [CmdletBinding()]
@@ -1384,11 +1402,18 @@ function Find-UnsafeLogonScriptPermissions {
                 -and $entry.AccessControlType -eq "Allow" `
                 -and $entry.IdentityReference -notmatch $SafeUsers
                 ){
-                $Results = [ordered] @{
+                <#$Results = [ordered] @{
                     Type = 'UnsafeLogonScriptPermission'
                     File = $script.FullName
                     User = $entry.IdentityReference.Value
                     Rights = $entry.FileSystemRights
+                }#>
+                $User = $entry.IdentityReference.Value
+                $Rights = $entry.FileSystemRights
+                $Results = [ordered] @{
+                    Misconfiguration = 'LSM-Access-4'
+                    Description = "Unsafe logon script permissions"
+                    Details = "$User with $Rights on $($script.FullName)"
                 }
                 [pscustomobject] $Results | Sort-Object -Unique
             }
@@ -1407,6 +1432,7 @@ function Find-UnsafeUNCPermissions {
     $UnsafeRights = 'FullControl|Modify|Write'
     $SafeUsers = $SafeUsersList
     foreach ($script in $UNCScripts){
+        # Write-Host $script
         # "Checking $script for unsafe permissions.."
         $ACL = (Get-Acl $script -ErrorAction SilentlyContinue).Access
         foreach ($entry in $ACL) {
@@ -1416,29 +1442,54 @@ function Find-UnsafeUNCPermissions {
                 ){
                 if ($script -match 'NETLOGON|SYSVOL') {
                     $Type = 'UnsafeNetlogonSysvol'
-                    $Results = [ordered] @{
+                    <#$Results = [ordered] @{
                         Type = $Type
                         Folder = $script
                         User = $entry.IdentityReference.Value
                         Rights = $entry.FileSystemRights
+                    }#>
+                    $Folder = $script
+                    $User = $entry.IdentityReference.Value
+                    $Rights = $entry.FileSystemRights
+                    $Results = [ordered] @{
+                        Misconfiguration = 'LSM-Access-3'
+                        Description = "Unsafe NETLOGON/SYSVOL permissions"
+                        Details = "$User with $Rights on $Folder"
                     }
                     [pscustomobject] $Results | Sort-Object -Unique
-                } elseif ($script -match '\.') {
+                } 
+                    elseif ($script -match '\.') {
                     $Type = 'UnsafeUNCFilePermission'
-                    $Results = [ordered] @{
+                    <#$Results = [ordered] @{
                         Type = $Type
                         File = $script
                         User = $entry.IdentityReference.Value
                         Rights = $entry.FileSystemRights
+                    }#>
+                    $File = $script
+                    $User = $entry.IdentityReference.Value
+                    $Rights = $entry.FileSystemRights
+                    $Results = [ordered] @{
+                        Misconfiguration = 'LSM-Access-2'
+                        Description = "Unsafe UNC file permissions"
+                        Details = "$User with $Rights on $File"
                     }
                     [pscustomobject] $Results | Sort-Object -Unique
                 } else {
                     $Type = 'UnsafeUNCFolderPermission'
-                    $Results = [ordered] @{
+                    <#$Results = [ordered] @{
                         Type = $Type
                         Folder = $script
                         User = $entry.IdentityReference.Value
                         Rights = $entry.FileSystemRights
+                    }#>
+                    $Folder = $script
+                    $User = $entry.IdentityReference.Value
+                    $Rights = $entry.FileSystemRights
+                    $Results = [ordered] @{
+                        Misconfiguration = 'LSM-Access-1'
+                        Description = "Unsafe UNC folder permissions"
+                        Details = "$User with $Rights on $Folder"
                     }
                     [pscustomobject] $Results | Sort-Object -Unique
                 }
@@ -1465,11 +1516,18 @@ function Find-UnsafeLogonScriptPermissions {
                 -and $entry.AccessControlType -eq "Allow" `
                 -and $entry.IdentityReference -notmatch $SafeUsers
                 ){
-                $Results = [ordered] @{
+                <#$Results = [ordered] @{
                     Type = 'UnsafeLogonScriptPermission'
                     File = $script.FullName
                     User = $entry.IdentityReference.Value
                     Rights = $entry.FileSystemRights
+                }#>
+                $User = $entry.IdentityReference.Value
+                $Rights = $entry.FileSystemRights
+                $Results = [ordered] @{
+                    Misconfiguration = 'LSM-Access-4'
+                    Description = "Unsafe logon script permissions"
+                    Details = "$User with $Rights on $($script.FullName)"
                 }
                 [pscustomobject] $Results | Sort-Object -Unique
             }
@@ -1495,18 +1553,24 @@ function Find-UnsafeGPOLogonScriptPermissions {
                 -and $entry.AccessControlType -eq "Allow" `
                 -and $entry.IdentityReference -notmatch $SafeUsers
                 ){
-                $Results = [ordered] @{
+                <#$Results = [ordered] @{
                     Type = 'UnsafeGPOLogonScriptPermission'
                     File = $script.FullName
                     User = $entry.IdentityReference.Value
                     Rights = $entry.FileSystemRights
+                }#>
+                $User = $entry.IdentityReference.Value
+                $Rights = $entry.FileSystemRights
+                $Results = [ordered] @{
+                    Misconfiguration = 'LSM-Access-5'
+                    Description = "Unsafe GPO logon script permissions"
+                    Details = "$User with $Rights on $($script.FullName)"
                 }
                 [pscustomobject] $Results | Sort-Object -Unique
             }
         }
     }
 }
-
 function Show-Results {
     [CmdletBinding()]
     param(
@@ -1515,26 +1579,26 @@ function Show-Results {
     )
 
     $IssueTable = @{
-        Credentials                    = 'Plaintext credentials'
-        NonexistentShare               = 'Nonexistent Shares'
-        ExploitableLogonScript         = 'Admins with logonscripts mapped from nonexistent share'
-        AdminLogonScript               = 'Admins with logonscripts'
-        UnsafeNetlogonSysvol           = 'Unsafe NETLOGON/SYSVOL permissions'
-        UnsafeUNCFilePermission        = 'Unsafe UNC file permissions'
-        UnsafeUNCFolderPermission      = 'Unsafe UNC folder permissions'
-        UnsafeLogonScriptPermission    = 'Unsafe logon script permissions'
-        UnsafeGPOLogonScriptPermission = 'Unsafe GPO logon script permissions'
+        'LSM-Creds'      = 'Plaintext credentials'
+        'LSM-Shares'     = 'Nonexistent Shares'
+        'LSM-Access-1'   = 'Unsafe UNC folder permissions'
+        'LSM-Access-2'   = 'Unsafe UNC file permissions'
+        'LSM-Access-3'   = 'Unsafe NETLOGON/SYSVOL permissions'
+        'LSM-Access-4'   = 'Unsafe logon script permissions'
+        'LSM-Access-5'   = 'Unsafe GPO logon script permissions'
+        'LSM-Admins-1'   = 'Admins with logonscripts'
+        'LSM-Admins-2'   = 'Admins with logonscripts mapped from nonexistent share'
     }
 
     if ($null -ne $Results) {
-        $UniqueResults = $Results.Type | Sort-Object -Unique
+        $UniqueResults = $Results.Misconfiguration | Sort-Object -Unique
         Write-Host "########## $($IssueTable[$UniqueResults]) ##########"
         # $Results | Format-List
         $Results | Format-Table -Wrap
     }
 }
 
-Get-Art -Version '0.6'
+Get-Art -Version '0.6-refactor'
 
 $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator|NT SERVICE\\TrustedInstaller|Domain Admins|Server Operators|Enterprise Admins|CREATOR OWNER'
 $AdminGroups = @("Account Operators", "Administrators", "Backup Operators", "Cryptographic Operators", "Distributed COM Users", "Domain Admins", "Domain Controllers", "Enterprise Admins", "Print Operators", "Schema Admins", "Server Operators")
@@ -1555,8 +1619,11 @@ if ($LogonScripts) {
     $MappedDrives = Find-MappedDrives -LogonScripts $LogonScripts
 
     # Find nonexistent shares
-    $NonExistentSharesScripts = Find-NonexistentShares -LogonScripts $LogonScripts -AdminUsers $AdminUsers
-    $NonExistentShares = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Potentially'} | Sort-Object -Property Share -Unique
+    $NonExistentShares = Find-NonexistentShares -LogonScripts $LogonScripts
+    #$NonExistentShares = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Potentially'} | Sort-Object -Property Share -Unique
+
+    # Find admins with nonexistent shares
+    $AdminsNonExistentShares = Find-AdminsNonexistentShares -NonExistentShares $NonExistentShares -AdminUsers $AdminUsers
 
     # Find unsafe permissions on logon scripts
     $UnsafeLogonScripts = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts -SafeUsersList $SafeUsers
@@ -1569,7 +1636,7 @@ if ($LogonScripts) {
 
 if ($NonExistentShares) {
     # Find Exploitable logon scripts
-    $ExploitableLogonScripts = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Yes'}
+    # $ExploitableLogonScripts = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Yes'}
 } else {
     Write-Host "[i] No non-existent shares found!`n" -ForegroundColor Cyan
 }
@@ -1582,7 +1649,7 @@ if ($UNCScripts) {
 }
 
 if ($MappedDrives) {
-    # Find unsafe permissions for unc paths found in logon scripts
+    # Find unsafe permissions for unc folders found in logon scripts
     $UnsafeMappedDrives = Find-UnsafeUNCPermissions -UNCScripts $MappedDrives -SafeUsersList $SafeUsers
 } else {
     Write-Host "[i] No mapped drives found!`n" -ForegroundColor Cyan
@@ -1603,54 +1670,119 @@ if ($GPOLogonScripts) {
 $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
 
 # Show all results
+if ($Credentials) {Show-Results $Credentials}
 if ($UnsafeMappedDrives) {Show-Results $UnsafeMappedDrives}
-if ($UnsafeLogonScripts) {Show-Results $UnsafeLogonScripts}
-if ($UnsafeGPOLogonScripts) {Show-Results $UnsafeGPOLogonScripts}
 if ($UnsafeUNCPermissions) {Show-Results $UnsafeUNCPermissions}
 if ($UnsafeNetlogonSysvol) {Show-Results $UnsafeNetlogonSysvol}
-if ($Credentials) {Show-Results $Credentials}
+if ($UnsafeLogonScripts) {Show-Results $UnsafeLogonScripts}
+if ($UnsafeGPOLogonScripts) {Show-Results $UnsafeGPOLogonScripts}
 if ($NonExistentShares) {Show-Results $NonExistentShares}
 if ($AdminLogonScripts) {Show-Results $AdminLogonScripts}
-if ($ExploitableLogonScripts) {Show-Results $ExploitableLogonScripts}
+if ($AdminsNonExistentShares) {Show-Results $AdminsNonExistentShares}
+# if ($ExploitableLogonScripts) {Show-Results $ExploitableLogonScripts}
 
 if ($SaveOutput) {
-    if ($UnsafeMappedDrives) {
-        Write-Host "[i] Saving UnsafeMappedDrives.csv to the current directory" -ForegroundColor Cyan
-        $UnsafeMappedDrives | Export-CSV -NoTypeInformation UnsafeMappedDrives.csv
-    }
-    if ($UnsafeLogonScripts) {
-        Write-Host "[i] Saving UnsafeLogonScripts.csv to the current directory" -ForegroundColor Cyan
-        $UnsafeLogonScripts | Export-CSV -NoTypeInformation UnsafeLogonScripts.csv
-    }
-    if ($UnsafeGPOLogonScripts) {
-        Write-Host "[i] Saving UnsafeGPOLogonScripts.csv to the current directory" -ForegroundColor Cyan
-        $UnsafeGPOLogonScripts | Export-Csv -NoTypeInformation UnsafeGPOLogonScripts.csv
-    }
-    if ($UnsafeUNCPermissions) {
-        Write-Host "[i] Saving UnsafeUNCPermissions.csv to the current directory" -ForegroundColor Cyan
-        $UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv
-    }
-    if ($UnsafeNetlogonSysvol) {
-        Write-Host "[i] Saving UnsafeNetlogonSysvol.csv to the current directory" -ForegroundColor Cyan
-        $UnsafeNetlogonSysvol | Export-Csv -NoTypeInformation UnsafeNetlogonSysvol.csv
-    }
-    if ($AdminLogonScripts) {
-        Write-Host "[i] Saving AdminLogonScripts.csv to the current directory" -ForegroundColor Cyan
-        $AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv
-    }
-    if ($Credentials) {
-        Write-Host "[i] Saving Credentials.csv to the current directory" -ForegroundColor Cyan
-        $Credentials | Export-CSV -NoTypeInformation Credentials.csv
-    }
-    if ($NonExistentShares) {
-        Write-Host "[i] Saving NonExistentShares.csv to the current directory" -ForegroundColor Cyan
-        $NonExistentShares | Export-CSV -NoTypeInformation NonExistentShares.csv
-    }
-    if ($ExploitableLogonScripts) {
-        Write-Host "[i] Saving ExploitableLogonScripts.csv to the current directory" -ForegroundColor Cyan
-        $ExploitableLogonScripts | Export-CSV -NoTypeInformation ExploitableLogonScripts.csv
-    }
+    if ($OutputDirectory){
+            if ($UnsafeMappedDrives) {
+            # Write-Host "[i] Saving UnsafeMappedDrives.csv to the current directory" -ForegroundColor Cyan
+            # $UnsafeMappedDrives | Export-CSV -NoTypeInformation UnsafeMappedDrives.csv
+            $UnsafeMappedDrives | Export-CSV -NoTypeInformation $OutputDirectory\ScriptSentryResults.csv -Append
+        }
+        if ($UnsafeLogonScripts) {
+            # Write-Host "[i] Saving UnsafeLogonScripts.csv to the current directory" -ForegroundColor Cyan
+            # $UnsafeLogonScripts | Export-CSV -NoTypeInformation UnsafeLogonScripts.csv
+            $UnsafeLogonScripts | Export-CSV -NoTypeInformation $OutputDirectory\ScriptSentryResults.csv -Append
+        }
+        if ($UnsafeGPOLogonScripts) {
+            # Write-Host "[i] Saving UnsafeGPOLogonScripts.csv to the current directory" -ForegroundColor Cyan
+            # $UnsafeGPOLogonScripts | Export-Csv -NoTypeInformation UnsafeGPOLogonScripts.csv
+            $UnsafeGPOLogonScripts | Export-Csv -NoTypeInformation $OutputDirectory\ScriptSentryResults.csv -Append
+        }
+        if ($UnsafeUNCPermissions) {
+            # Write-Host "[i] Saving UnsafeUNCPermissions.csv to the current directory" -ForegroundColor Cyan
+            # $UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv
+            $UnsafeUNCPermissions | Export-CSV -NoTypeInformation $OutputDirectory\ScriptSentryResults.csv -Append
+        }
+        if ($UnsafeNetlogonSysvol) {
+            # Write-Host "[i] Saving UnsafeNetlogonSysvol.csv to the current directory" -ForegroundColor Cyan
+            # $UnsafeNetlogonSysvol | Export-Csv -NoTypeInformation UnsafeNetlogonSysvol.csv
+            $UnsafeNetlogonSysvol | Export-Csv -NoTypeInformation $OutputDirectory\ScriptSentryResults.csv -Append
+        }
+        if ($AdminLogonScripts) {
+            # Write-Host "[i] Saving AdminLogonScripts.csv to the current directory" -ForegroundColor Cyan
+            # $AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv
+            $AdminLogonScripts | Export-CSV -NoTypeInformation $OutputDirectory\ScriptSentryResults.csv -Append
+        }
+        if ($Credentials) {
+            # Write-Host "[i] Saving Credentials.csv to the current directory" -ForegroundColor Cyan
+            # $Credentials | Export-CSV -NoTypeInformation Credentials.csv
+            $Credentials | Export-CSV -NoTypeInformation $OutputDirectory\ScriptSentryResults.csv -Append
+        }
+        if ($NonExistentShares) {
+            # Write-Host "[i] Saving NonExistentShares.csv to the current directory" -ForegroundColor Cyan
+            # $NonExistentShares | Export-CSV -NoTypeInformation NonExistentShares.csv
+            $NonExistentShares | Export-CSV -NoTypeInformation $OutputDirectory\ScriptSentryResults.csv -Append
+        }
+        if ($ExploitableLogonScripts) {
+            # Write-Host "[i] Saving ExploitableLogonScripts.csv to the current directory" -ForegroundColor Cyan
+            # $ExploitableLogonScripts | Export-CSV -NoTypeInformation ExploitableLogonScripts.csv
+            $ExploitableLogonScripts | Export-CSV -NoTypeInformation $OutputDirectory\ScriptSentryResults.csv -Append
+        }
 
+        if ($AdminsNonExistentShares) {
+            $AdminsNonExistentShares | Export-CSV -NoTypeInformation $OutputDirectory\ScriptSentryResults.csv -Append
+        }
+    } else {
+        if ($UnsafeMappedDrives) {
+            # Write-Host "[i] Saving UnsafeMappedDrives.csv to the current directory" -ForegroundColor Cyan
+            # $UnsafeMappedDrives | Export-CSV -NoTypeInformation UnsafeMappedDrives.csv
+            $UnsafeMappedDrives | Export-CSV -NoTypeInformation ScriptSentryResults.csv -Append
+        }
+        if ($UnsafeLogonScripts) {
+            # Write-Host "[i] Saving UnsafeLogonScripts.csv to the current directory" -ForegroundColor Cyan
+            # $UnsafeLogonScripts | Export-CSV -NoTypeInformation UnsafeLogonScripts.csv
+            $UnsafeLogonScripts | Export-CSV -NoTypeInformation ScriptSentryResults.csv -Append
+        }
+        if ($UnsafeGPOLogonScripts) {
+            # Write-Host "[i] Saving UnsafeGPOLogonScripts.csv to the current directory" -ForegroundColor Cyan
+            # $UnsafeGPOLogonScripts | Export-Csv -NoTypeInformation UnsafeGPOLogonScripts.csv
+            $UnsafeGPOLogonScripts | Export-Csv -NoTypeInformation ScriptSentryResults.csv -Append
+        }
+        if ($UnsafeUNCPermissions) {
+            # Write-Host "[i] Saving UnsafeUNCPermissions.csv to the current directory" -ForegroundColor Cyan
+            # $UnsafeUNCPermissions | Export-CSV -NoTypeInformation UnsafeUNCPermissions.csv
+            $UnsafeUNCPermissions | Export-CSV -NoTypeInformation ScriptSentryResults.csv -Append
+        }
+        if ($UnsafeNetlogonSysvol) {
+            # Write-Host "[i] Saving UnsafeNetlogonSysvol.csv to the current directory" -ForegroundColor Cyan
+            # $UnsafeNetlogonSysvol | Export-Csv -NoTypeInformation UnsafeNetlogonSysvol.csv
+            $UnsafeNetlogonSysvol | Export-Csv -NoTypeInformation ScriptSentryResults.csv -Append
+        }
+        if ($AdminLogonScripts) {
+            # Write-Host "[i] Saving AdminLogonScripts.csv to the current directory" -ForegroundColor Cyan
+            # $AdminLogonScripts | Export-CSV -NoTypeInformation AdminLogonScripts.csv
+            $AdminLogonScripts | Export-CSV -NoTypeInformation ScriptSentryResults.csv -Append
+        }
+        if ($Credentials) {
+            # Write-Host "[i] Saving Credentials.csv to the current directory" -ForegroundColor Cyan
+            # $Credentials | Export-CSV -NoTypeInformation Credentials.csv
+            $Credentials | Export-CSV -NoTypeInformation ScriptSentryResults.csv -Append
+        }
+        if ($NonExistentShares) {
+            # Write-Host "[i] Saving NonExistentShares.csv to the current directory" -ForegroundColor Cyan
+            # $NonExistentShares | Export-CSV -NoTypeInformation NonExistentShares.csv
+            $NonExistentShares | Export-CSV -NoTypeInformation ScriptSentryResults.csv -Append
+        }
+        if ($ExploitableLogonScripts) {
+            # Write-Host "[i] Saving ExploitableLogonScripts.csv to the current directory" -ForegroundColor Cyan
+            # $ExploitableLogonScripts | Export-CSV -NoTypeInformation ExploitableLogonScripts.csv
+            $ExploitableLogonScripts | Export-CSV -NoTypeInformation ScriptSentryResults.csv -Append
+        }
+
+        if ($AdminsNonExistentShares) {
+            $AdminsNonExistentShares | Export-CSV -NoTypeInformation ScriptSentryResults.csv -Append
+        }
+    }
     Get-ChildItem -Filter "*.csv" -File
 }
 }
