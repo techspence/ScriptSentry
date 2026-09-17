@@ -44,6 +44,18 @@ Misconfiguration Description                                 Details
 ---------------- -----------                                 -------
 LSM-Creds        Plaintext credentials within a logon script \\contoso.com\sysvol\contoso.com\scripts\logon.bat - net use Z: \\FS01\Tools /user:CONTOSO\svc.deploy [REDACTED]
 
+########## Unsafe UNC folder permissions ##########
+
+Misconfiguration Description                   Details
+---------------- -----------                   -------
+LSM-Access-1     Unsafe UNC folder permissions CONTOSO\Domain Users with Modify on \\FS01\Tools
+
+########## Unsafe UNC file permissions ##########
+
+Misconfiguration Description                 Details
+---------------- -----------                 -------
+LSM-Access-2     Unsafe UNC file permissions CONTOSO\Domain Users with Modify on \\FS01\Tools\startup.ps1
+
 ########## Unsafe NETLOGON/SYSVOL permissions ##########
 
 Misconfiguration Description                        Details
@@ -62,9 +74,21 @@ Misconfiguration Description                         Details
 ---------------- -----------                         -------
 LSM-Access-5     Unsafe GPO logon script permissions CONTOSO\Domain Users with Modify on \\contoso.com\NETLOGON\logon.bat
 
+########## Admins with logonscripts ##########
+
+Misconfiguration Description              Details
+---------------- -----------              -------
+LSM-Admins-1     Admins with logonscripts CN=Administrator,CN=Users,DC=contoso,DC=com - logon.bat
+
 ########## Nonexistent Shares ##########
 
 Misconfiguration Description         Details
 ---------------- -----------         -------
 LSM-Shares       Non-existent shares \\OLD-FS01\Legacy mapped in \\contoso.com\sysvol\contoso.com\scripts\logon.bat
+
+########## Admins with logonscripts mapped from nonexistent share ##########
+
+Misconfiguration Description                                             Details
+---------------- -----------                                             -------
+LSM-Admins-2     Admins with logonscripts mapped from nonexistent share CN=Administrator,CN=Users,DC=contoso,DC=com - logon.bat mapping \\OLD-FS01\Legacy
 ```
