@@ -16,99 +16,79 @@ Invoke-ScriptSentry
 IEX(Invoke-WebRequest 'https://raw.githubusercontent.com/techspence/ScriptSentry/main/Invoke-ScriptSentry.ps1')
 Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
 
-# Run ScriptSentry and save results to separate csv files in the current directory
+# Run ScriptSentry and save results to ScriptSentryResults.csv in the current directory
 IEX(Invoke-WebRequest 'https://raw.githubusercontent.com/techspence/ScriptSentry/main/Invoke-ScriptSentry.ps1')
 Invoke-ScriptSentry -SaveOutput $true
+
+# Save results to a specific directory
+Invoke-ScriptSentry -SaveOutput $true -OutputDirectory C:\Temp\ScriptSentry
+
+# Use alternate credentials for LDAP queries
+$Credential = Get-Credential
+Invoke-ScriptSentry -Credential $Credential
+
+# Query a specific domain controller and domain
+Invoke-ScriptSentry -Server DC01.contoso.com -Domain contoso.com
+
+# Query a specific domain controller with alternate credentials
+Invoke-ScriptSentry -Server DC01.contoso.com -Domain contoso.com -Credential $Credential
 ```
+
+`-Server` and `-Domain` must be used together. `-Credential` applies to LDAP queries; SYSVOL, NETLOGON, and other UNC paths are accessed as the user running PowerShell.
 
 ### Example Output
 ```
- _______  _______  _______ _________ _______ _________ _______  _______  _       _________ _______
-(  ____ \(  ____ \(  ____ )\__   __/(  ____ )\__   __/(  ____ \(  ____ \( (    /|\__   __/(  ____ )|\     /|
-| (    \/| (    \/| (    )|   ) (   | (    )|   ) (   | (    \/| (    \/|  \  ( |   ) (   | (    )|( \   / )
-| (_____ | |      | (____)|   | |   | (____)|   | |   | (_____ | (__    |   \ | |   | |   | (____)| \ (_) /
-(_____  )| |      |     __)   | |   |  _____)   | |   (_____  )|  __)   | (\ \) |   | |   |     __)  \   /
-      ) || |      | (\ (      | |   | (         | |         ) || (      | | \   |   | |   | (\ (      ) (
-/\____) || (____/\| ) \ \_____) (___| )         | |   /\____) || (____/\| )  \  |   | |   | ) \ \__   | |
-\_______)(_______/|/   \__/\_______/|/          )_(   \_______)(_______/|/    )_)   )_(   |/   \__/   \_/
-                              by: Spencer Alessi @techspence
-                                          v0.6
-                                      __,_______
-                                     / __.==---/ * * * * * *
-                                    / (-'
-                                    `-'
-                            Setting phasers to stun, please wait..
+########## Plaintext credentials ##########
+
+Misconfiguration Description                                 Details
+---------------- -----------                                 -------
+LSM-Creds        Plaintext credentials within a logon script \\contoso.com\sysvol\contoso.com\scripts\logon.bat - net use Z: \\FS01\Tools /user:CONTOSO\svc.deploy [REDACTED]
 
 ########## Unsafe UNC folder permissions ##########
 
-Type                      File                                User          Rights
-----                      ----                                ----          ------
-UnsafeUNCFolderPermission \\eureka-dc01\fileshare1            Everyone FullControl
-UnsafeUNCFolderPermission \\eureka-dc01\fileshare1\accounting Everyone FullControl
-UnsafeUNCFolderPermission \\eureka-dc01\fileshare1\IT         Everyone FullControl
-
-
-########## Unsafe logon script permissions ##########
-
-Type                        File                                                   User                                                  Rights
-----                        ----                                                   ----                                                  ------
-UnsafeLogonScriptPermission \\eureka.local\sysvol\eureka.local\scripts\elevate.vbs NT AUTHORITY\Authenticated Users ReadAndExecute, Synchronize
-UnsafeLogonScriptPermission \\eureka.local\sysvol\eureka.local\scripts\run.vbs     NT AUTHORITY\Authenticated Users ReadAndExecute, Synchronize
-UnsafeLogonScriptPermission \\eureka.local\sysvol\eureka.local\scripts\test.cmd    EUREKA\Domain Users                      Modify, Synchronize
-
-
-########## Unsafe GPO logon script permissions ##########
-
-Type                           File                             User                                        Rights
-----                           ----                             ----                                        ------
-UnsafeGPOLogonScriptPermission \\eureka-dc01\fileshare1\run.bat EUREKA\testuser Write, ReadAndExecute, Synchronize
-UnsafeGPOLogonScriptPermission \\eureka-dc01\fileshare1\run.bat Everyone                               FullControl
-
+Misconfiguration Description                   Details
+---------------- -----------                   -------
+LSM-Access-1     Unsafe UNC folder permissions CONTOSO\Domain Users with Modify on \\FS01\Tools
 
 ########## Unsafe UNC file permissions ##########
 
-Type                    File                                              User                                        Rights
-----                    ----                                              ----                                        ------
-UnsafeUNCFilePermission \\eureka-dc01\fileshare1\IT\securit360pentest.bat Everyone                               FullControl
-
+Misconfiguration Description                 Details
+---------------- -----------                 -------
+LSM-Access-2     Unsafe UNC file permissions CONTOSO\Domain Users with Modify on \\FS01\Tools\startup.ps1
 
 ########## Unsafe NETLOGON/SYSVOL permissions ##########
 
-Type                 Folder                  User                                          Rights
-----                 ------                  ----                                          ------
-UnsafeNetlogonSysvol \\eureka.local\NETLOGON EUREKA\Domain Users              Modify, Synchronize
-UnsafeNetlogonSysvol \\eureka.local\SYSVOL   NT AUTHORITY\Authenticated Users Modify, Synchronize
+Misconfiguration Description                        Details
+---------------- -----------                        -------
+LSM-Access-3     Unsafe NETLOGON/SYSVOL permissions CONTOSO\Domain Users with Modify on \\contoso.com\NETLOGON
 
-########## Plaintext credentials ##########
+########## Unsafe logon script permissions ##########
 
-Type        File                                                   Credential
-----        ----                                                   ----------
-Credentials \\eureka.local\sysvol\eureka.local\scripts\ADCheck.ps1 $password = ConvertTo-SecureString -String "Password2468!" -AsPlainText -Force
-Credentials \\eureka.local\sysvol\eureka.local\scripts\shares.cmd  net use f: \\eureka-dc01\fileshare1\it /user:itadmin Password2468!
-Credentials \\eureka.local\sysvol\eureka.local\scripts\test.cmd    net use g: \\eureka-dc01\fileshare1 /user:user1 Password3355!
-Credentials \\eureka.local\sysvol\eureka.local\scripts\test.cmd    net use h: \\eureka-dc01\fileshare1\accounting /user:userfoo Password5!
-Credentials \\eureka.local\sysvol\eureka.local\scripts\logon.kix   Use X: "\\eureka-dc01\fileshare2" /USER:itadmin /P:Password2468!
+Misconfiguration Description                     Details
+---------------- -----------                     -------
+LSM-Access-4     Unsafe logon script permissions CONTOSO\Domain Users with Modify on \\contoso.com\sysvol\contoso.com\scripts\logon.bat
 
-########## Nonexistent Shares ##########
+########## Unsafe GPO logon script permissions ##########
 
-Type             Server             Share                                 Script                                                   DNS Exploitable Admins
-----             ------             -----                                 ------                                                   --- ----------- ------
-NonexistentShare CUHOLDING          \\CUHOLDING\QUICKBOOKS                \\eureka.local\sysvol\eureka.local\scripts\marketing.bat No  Potentially No    
-NonexistentShare eureka-srvnotexist \\eureka-srvnotexist\NonExistingShare \\eureka.local\sysvol\eureka.local\scripts\test.cmd      No  Potentially No    
-NonexistentShare NAS                \\NAS\PUBLIC                          \\eureka.local\sysvol\eureka.local\scripts\main.bat      No  Potentially No    
-NonexistentShare NAS                \\NAS\SYMITAR                         \\eureka.local\sysvol\eureka.local\scripts\symregOLD.bat No  Potentially No    
+Misconfiguration Description                         Details
+---------------- -----------                         -------
+LSM-Access-5     Unsafe GPO logon script permissions CONTOSO\Domain Users with Modify on \\contoso.com\NETLOGON\logon.bat
 
 ########## Admins with logonscripts ##########
 
-Type             User                                                      LogonScript
-----             ----                                                      -----------
-AdminLogonScript LDAP://CN=Administrator,CN=Users,DC=eureka,DC=local       run.vbs
-AdminLogonScript LDAP://CN=it admin,OU=Admins,OU=Eureka,DC=eureka,DC=local elevate.vbs
+Misconfiguration Description              Details
+---------------- -----------              -------
+LSM-Admins-1     Admins with logonscripts CN=Administrator,CN=Users,DC=contoso,DC=com - logon.bat
+
+########## Nonexistent Shares ##########
+
+Misconfiguration Description         Details
+---------------- -----------         -------
+LSM-Shares       Non-existent shares \\OLD-FS01\Legacy mapped in \\contoso.com\sysvol\contoso.com\scripts\logon.bat
 
 ########## Admins with logonscripts mapped from nonexistent share ##########
 
-Type                   Server             Share                                 Script                                              DNS Exploitable Admins                                                                
-----                   ------             -----                                 ------                                              --- ----------- ------                                                                
-ExploitableLogonScript eureka-srvnotexist \\eureka-srvnotexist\NonExistingShare \\eureka.local\sysvol\eureka.local\scripts\test.cmd No  Yes  LDAP://eureka.local/CN=it admin,OU=Admins,OU=Eureka,DC=eureka,DC=local
-ExploitableLogonScript eureka-srvnotexist \\eureka-srvnotexist\NonExistingShare \\eureka.local\sysvol\eureka.local\scripts\test.cmd No  Yes  LDAP://eureka.local/CN=user1,OU=Users,OU=Eureka,DC=eureka,DC=local  
+Misconfiguration Description                                             Details
+---------------- -----------                                             -------
+LSM-Admins-2     Admins with logonscripts mapped from nonexistent share CN=Administrator,CN=Users,DC=contoso,DC=com - logon.bat mapping \\OLD-FS01\Legacy
 ```

@@ -4,9 +4,9 @@ function Invoke-ScriptSentry{
 ScriptSentry finds misconfigured and dangerous logon scripts.
 
 .DESCRIPTION
-ScriptSentry searches the NETLOGON share & Group Policy to 
+ScriptSentry searches the NETLOGON share & Group Policy to
     1) identify plaintext credentials in logon scripts
-    2) identify admins that have logon script set 
+    2) identify admins that have logon script set
     3) identify scripts and shares that may have dangerous permissions
 
 .EXAMPLE
@@ -22,12 +22,22 @@ Invoke-ScriptSentry -SaveOutput $true
 Invoke-ScriptSentry -SaveOutput $true -OutputDirectory c:\ScriptSentry
 
 #>
-[CmdletBinding()]
+[CmdletBinding(DefaultParameterSetName = 'Default')]
 Param(
     [boolean]$SaveOutput = $false,
-    [string]$OutputDirectory = ''
+    [string]$OutputDirectory = '',
+
+    [Management.Automation.PSCredential]
+    [Management.Automation.CredentialAttribute()]
+    $Credential = [Management.Automation.PSCredential]::Empty,
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'Server')]
+    [string]$Server,
+
+    [Parameter(Mandatory = $true, ParameterSetName = 'Server')]
+    [string]$Domain
 )
-    
+
 function Get-ForestDomains {
     [CmdletBinding()]
     param()
@@ -623,78 +633,78 @@ function Get-DomainUser {
             [Alias('DistinguishedName', 'SamAccountName', 'Name', 'MemberDistinguishedName', 'MemberName')]
             [String[]]
             $Identity,
-    
+
             [Switch]
             $SPN,
-    
+
             [Switch]
             $AdminCount,
-    
+
             [Parameter(ParameterSetName = 'AllowDelegation')]
             [Switch]
             $AllowDelegation,
-    
+
             [Parameter(ParameterSetName = 'DisallowDelegation')]
             [Switch]
             $DisallowDelegation,
-    
+
             [Switch]
             $TrustedToAuth,
-    
+
             [Alias('KerberosPreauthNotRequired', 'NoPreauth')]
             [Switch]
             $PreauthNotRequired,
-    
+
             [ValidateNotNullOrEmpty()]
             [String]
             $Domain,
-    
+
             [ValidateNotNullOrEmpty()]
             [Alias('Filter')]
             [String]
             $LDAPFilter,
-    
+
             [ValidateNotNullOrEmpty()]
             [String[]]
             $Properties,
-    
+
             [ValidateNotNullOrEmpty()]
             [Alias('ADSPath')]
             [String]
             $SearchBase,
-    
+
             [ValidateNotNullOrEmpty()]
             [Alias('DomainController')]
             [String]
             $Server,
-    
+
             [ValidateSet('Base', 'OneLevel', 'Subtree')]
             [String]
             $SearchScope = 'Subtree',
-    
+
             [ValidateRange(1, 10000)]
             [Int]
             $ResultPageSize = 200,
-    
+
             [ValidateRange(1, 10000)]
             [Int]
             $ServerTimeLimit,
-    
+
             [ValidateSet('Dacl', 'Group', 'None', 'Owner', 'Sacl')]
             [String]
             $SecurityMasks,
-    
+
             [Switch]
             $Tombstone,
-    
+
             [Alias('ReturnOne')]
             [Switch]
             $FindOne,
-    
+
             [Management.Automation.PSCredential]
             [Management.Automation.CredentialAttribute()]
             $Credential = [Management.Automation.PSCredential]::Empty,
-    
+
             [Switch]
             $Raw
         )
@@ -712,7 +722,7 @@ function Get-DomainUser {
             if ($PSBoundParameters['Credential']) { $SearcherArguments['Credential'] = $Credential }
             $UserSearcher = Get-DomainSearcher @SearcherArguments
         }
-    
+
     PROCESS {
             if ($UserSearcher) {
                 $IdentityFilter = ''
@@ -755,11 +765,11 @@ function Get-DomainUser {
                         $IdentityFilter += "(samAccountName=$IdentityInstance)"
                     }
                 }
-    
+
                 if ($IdentityFilter -and ($IdentityFilter.Trim() -ne '') ) {
                     $Filter += "(|$IdentityFilter)"
                 }
-    
+
                 if ($PSBoundParameters['SPN']) {
                     Write-Verbose '[Get-DomainUser] Searching for non-null service principal names'
                     $Filter += '(servicePrincipalName=*)'
@@ -789,7 +799,7 @@ function Get-DomainUser {
                     Write-Verbose "[Get-DomainUser] Using additional LDAP filter: $LDAPFilter"
                     $Filter += "$LDAPFilter"
                 }
-    
+
                 # build the LDAP filter for the dynamic UAC filter value
                 $UACFilter | Where-Object {$_} | ForEach-Object {
                     if ($_ -match 'NOT_.*') {
@@ -802,10 +812,10 @@ function Get-DomainUser {
                         $Filter += "(userAccountControl:1.2.840.113556.1.4.803:=$UACValue)"
                     }
                 }
-    
+
                 $UserSearcher.filter = "(&(samAccountType=805306368)$Filter)"
                 Write-Verbose "[Get-DomainUser] filter string: $($UserSearcher.filter)"
-    
+
                 if ($PSBoundParameters['FindOne']) { $Results = $UserSearcher.FindOne() }
                 else { $Results = $UserSearcher.FindAll() }
                 $Results | Where-Object {$_} | ForEach-Object {
@@ -1008,17 +1018,39 @@ function Get-DomainObject {
 }
 function Get-LogonScripts {
     [CmdletBinding()]
-    param()
+    param(
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty,
+
+        [string]
+        $Domain,
+
+        [string]
+        $Server
+    )
 
     # Get the current domain name from the environment
     # $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
-    $Domains = Get-ForestDomains
+    if ($Domain) {
+        $Domains = $Domain
+    } else {
+        $Domains = Get-ForestDomains
+    }
 
     foreach ($Domain in $Domains) {
+        $DomainName = if ($Domain -is [string]) { $Domain } else { $Domain.Name }
         # $SysvolScripts = '\\' + (Get-ADDomain).DNSRoot + '\sysvol\' + (Get-ADDomain).DNSRoot + '\scripts'
-        $SysvolScripts = "\\$($Domain.Name)\sysvol\$($Domain.Name)\scripts"
+        if ($Server) {
+            $SysvolScripts = "\\$Server\sysvol\$DomainName\scripts"
+        } else {
+            $SysvolScripts = "\\$DomainName\sysvol\$DomainName\scripts"
+        }
         $ExtensionList = '.bat|.vbs|.ps1|.cmd|.kix'
-        $LogonScripts = try { Get-ChildItem -Path $SysvolScripts -Recurse | Where-Object {$_.Extension -match $ExtensionList} } catch {}
+        $LogonScripts = try {
+            Get-ChildItem -LiteralPath $SysvolScripts -Recurse -File -ErrorAction Stop |
+                Where-Object { $_.Extension -match $ExtensionList }
+        } catch {}
         Write-Verbose "[+] Logon scripts:"
         $LogonScripts | ForEach-Object {
             Write-Verbose -Message "$($_.fullName)"
@@ -1028,15 +1060,34 @@ function Get-LogonScripts {
 }
 function Get-GPOLogonScripts {
     [CmdletBinding()]
-    param()
+    param(
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty,
+
+        [string]
+        $Domain,
+
+        [string]
+        $Server
+    )
 
     # Get the current domain name from the environment
     # $currentDomain = [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
-    $Domains = Get-ForestDomains
+    if ($Domain) {
+        $Domains = $Domain
+    } else {
+        $Domains = Get-ForestDomains
+    }
 
     foreach ($Domain in $Domains) {
-        $Policies = Get-ChildItem "\\$($Domain.Name)\SysVol\$($Domain.Name)\Policies" -ErrorAction SilentlyContinue
-        $Policies | ForEach-Object { 
+        $DomainName = if ($Domain -is [string]) { $Domain } else { $Domain.Name }
+        if ($Server) {
+            $Policies = Get-ChildItem "\\$Server\SYSVOL\$DomainName\POLICIES\" -ErrorAction SilentlyContinue
+        } else {
+            $Policies = Get-ChildItem "\\$DomainName\SysVol\$DomainName\Policies" -ErrorAction SilentlyContinue
+        }
+        $Policies | ForEach-Object {
             $GPOLogonScripts = Get-Content -Path "$($_.FullName)\User\Scripts\scripts.ini" -ErrorAction SilentlyContinue | Select-String -Pattern "\\\\.*\.\w+" | ForEach-Object { $_.Matches.Value }
             Write-Verbose "[+] GPO Logon scripts:"
             $GPOLogonScripts | ForEach-Object {
@@ -1050,26 +1101,42 @@ function Get-GPOLogonScripts {
 }
 function Get-NetlogonSysvol {
     [CmdletBinding()]
-    param()
+    param(
+        [string]
+        $Domain,
 
-    $Domains = Get-ForestDomains
+        [string]
+        $Server
+    )
+
+    if ($Domain) {
+        $Domains = $Domain
+    } else {
+        $Domains = Get-ForestDomains
+    }
     foreach ($Domain in $Domains){
-        "\\$($Domain.Name)\NETLOGON"
-        "\\$($Domain.Name)\SYSVOL"
+        $DomainName = if ($Domain -is [string]) { $Domain } else { $Domain.Name }
+        if ($Server) {
+            "\\$Server\NETLOGON"
+            "\\$Server\SYSVOL"
+        } else {
+            "\\$DomainName\NETLOGON"
+            "\\$DomainName\SYSVOL"
+        }
     }
 }
 function Get-Art($Version) {
 "
- _______  _______  _______ _________ _______ _________ _______  _______  _       _________ _______          
+ _______  _______  _______ _________ _______ _________ _______  _______  _       _________ _______
 (  ____ \(  ____ \(  ____ )\__   __/(  ____ )\__   __/(  ____ \(  ____ \( (    /|\__   __/(  ____ )|\     /|
 | (    \/| (    \/| (    )|   ) (   | (    )|   ) (   | (    \/| (    \/|  \  ( |   ) (   | (    )|( \   / )
-| (_____ | |      | (____)|   | |   | (____)|   | |   | (_____ | (__    |   \ | |   | |   | (____)| \ (_) / 
-(_____  )| |      |     __)   | |   |  _____)   | |   (_____  )|  __)   | (\ \) |   | |   |     __)  \   /  
-      ) || |      | (\ (      | |   | (         | |         ) || (      | | \   |   | |   | (\ (      ) (   
-/\____) || (____/\| ) \ \_____) (___| )         | |   /\____) || (____/\| )  \  |   | |   | ) \ \__   | |   
-\_______)(_______/|/   \__/\_______/|/          )_(   \_______)(_______/|/    )_)   )_(   |/   \__/   \_/   
-                              by: Spencer Alessi @techspence                                                                 
-                                          v$Version                                           
+| (_____ | |      | (____)|   | |   | (____)|   | |   | (_____ | (__    |   \ | |   | |   | (____)| \ (_) /
+(_____  )| |      |     __)   | |   |  _____)   | |   (_____  )|  __)   | (\ \) |   | |   |     __)  \   /
+      ) || |      | (\ (      | |   | (         | |         ) || (      | | \   |   | |   | (\ (      ) (
+/\____) || (____/\| ) \ \_____) (___| )         | |   /\____) || (____/\| )  \  |   | |   | ) \ \__   | |
+\_______)(_______/|/   \__/\_______/|/          )_(   \_______)(_______/|/    )_)   )_(   |/   \__/   \_/
+                              by: Spencer Alessi @techspence
+                                          v$Version
                                       __,_______
                                      / __.==---/ * * * * * *
                                     / (-'
@@ -1084,9 +1151,9 @@ function Convert-LDAPProperty {
 Helper that converts specific LDAP property result fields and outputs
 a custom psobject.
 
-Author: Will Schroeder (@harmj0y)  
-License: BSD 3-Clause  
-Required Dependencies: None  
+Author: Will Schroeder (@harmj0y)
+License: BSD 3-Clause
+Required Dependencies: None
 
 .DESCRIPTION
 
@@ -1206,12 +1273,19 @@ A custom PSObject with LDAP hashtable properties translated.
 function Find-AdminLogonScripts {
     [CmdletBinding()]
     param (
-        [array]$AdminUsers
-    ) 
+        [array]$AdminUsers,
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty
+    )
     # Enabled user accounts
     Foreach ($Admin in $AdminUsers) {
-        $AdminLogonScripts = Get-DomainUser -Identity $Admin.MemberName | Where-Object { $null -ne $_.scriptPath }
-        
+        $UserArguments = @{ Identity = $Admin.MemberName }
+        if ($Credential -ne [Management.Automation.PSCredential]::Empty) {
+            $UserArguments.Credential = $Credential
+        }
+        $AdminLogonScripts = Get-DomainUser @UserArguments | Where-Object { $null -ne $_.scriptPath }
+
         # "`n[!] Admins found with logon scripts"
         $AdminLogonScripts | Foreach-object {
             <# $Results = [ordered] @{
@@ -1233,11 +1307,14 @@ function Find-LogonScriptCredentials {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [array]$LogonScripts
+        [array]$LogonScripts,
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty
     )
     foreach ($script in $LogonScripts) {
         # Write-Verbose -Message "Checking $($Script.FullName) for credentials.."
-        $Credentials = Get-Content -Path $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern "/user:","-AsPlainText" -AllMatches
+        $Credentials = Get-Content -Path $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern "/u[\w]*:","-AsPlainText" -AllMatches
         if ($Credentials) {
             # "`n[!] CREDENTIALS FOUND!"
             $Credentials | ForEach-Object {
@@ -1260,13 +1337,18 @@ function Find-UNCScripts {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [array]$LogonScripts
+        [array]$LogonScripts,
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty
     )
 
     $ExcludedMatches = "copy|&|/command|%WINDIR%|-i|\*"
     $UNCFiles = @()
     [Array] $UNCFiles = foreach ($script in $LogonScripts) {
-        $MatchingUNCFiles = Get-Content $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern '\\\\.*\.\w+' | ForEach-Object { $_.Matches.Value }
+        $MatchingUNCFiles = Get-Content $script.FullName -ErrorAction SilentlyContinue |
+            Select-String -AllMatches -Pattern '\\\\[\w.\-]+\\[^\s"'']+?\.[A-Za-z0-9]{1,10}(?=[\s"'']|$)' |
+            ForEach-Object { $_.Matches.Value }
         $MatchingUNCFiles | Foreach-object {
             if ($_ -match $ExcludedMatches) {
                 # don't collect
@@ -1279,33 +1361,27 @@ function Find-UNCScripts {
     $UNCFiles | ForEach-Object {
         Write-Verbose -Message "$_"
     }
-    
+
     $UNCFiles | Sort-Object -Unique
 }
 function Find-MappedDrives {
     [CmdletBinding()]
     param(
         [Parameter(Mandatory = $true)]
-        [array]$LogonScripts
+        [array]$LogonScripts,
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty
     )
 
     $Shares = @()
     [Array] $Shares = foreach ($script in $LogonScripts) {
-        $temp = Get-Content $script.FullName -ErrorAction SilentlyContinue | Select-String -Pattern '.*net use.*','New-SmbMapping','.MapNetworkDrive' | ForEach-Object { $_.Matches.Value } 
-        $temp = $temp | Select-String -Pattern '\\\\[\w\.\-]+\\[\w\-_\\.]+' | ForEach-Object { $_.Matches.Value }
-        $temp | ForEach-Object {
-            try {
-                $Path = "$_"
-                # Live servers we have access to
-                (Get-Item $Path -ErrorAction Stop).FullName
-            } catch [System.UnauthorizedAccessException] {
-                # Servers we either don't have access to or do not exist
-                Write-Verbose "$_ : You do not have access to $Directory`n"
+        Get-Content $script.FullName -ErrorAction SilentlyContinue |
+            Select-String -Pattern 'net\s+use|New-SmbMapping|MapNetworkDrive' |
+            ForEach-Object {
+                [regex]::Matches($_.Line, '\\\\[\w.\-]+\\[\w$_.\-]+') |
+                    ForEach-Object Value
             }
-            catch {
-                Write-Verbose "An error occurred: $($_.Exception.Message)"
-            }
-        }
     }
 
     Write-Verbose "[+] Mapped drives:"
@@ -1318,7 +1394,10 @@ function Find-MappedDrives {
 function Find-NonexistentShares {
     [CmdletBinding()]
     param (
-        [array]$LogonScripts
+        [array]$LogonScripts,
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty
     )
     $LogonScriptShares = @()
     [Array] $LogonScriptShares = foreach ($script in $LogonScripts) {
@@ -1339,7 +1418,7 @@ function Find-NonexistentShares {
     $NonExistentShares = @()
     [Array] $NonExistentShares = foreach ($LogonScriptShare in $LogonScriptShares) {
         $ServerWithoutDNS = $null
-        try { 
+        try {
             $DNSEntry = [System.Net.DNS]::GetHostByName($LogonScriptShare.Server)
         } catch {
             $ServerWithoutDNS = $LogonScriptShare
@@ -1348,7 +1427,7 @@ function Find-NonexistentShares {
             $Results = [ordered] @{
                 Misconfiguration = 'LSM-Shares'
                 Description = "Non-existent shares"
-                Details = "$($ServerWithoutDNS.Server) mapped in $($ServerWithoutDNS.Script)"
+                Details = "$($ServerWithoutDNS.Share) mapped in $($ServerWithoutDNS.Script)"
             }
             [pscustomobject] $Results
         }
@@ -1359,9 +1438,12 @@ function Find-AdminsNonexistentShares {
     [CmdletBinding()]
     param (
         [array]$NonExistentShares,
-        [array]$AdminUsers
+        [array]$AdminUsers,
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty
     )
-    $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
+    $AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers -Credential $Credential
     # $Share = ($NonExistentShares.Details | Select-String '\\\\[\w\.\-]+\\[\w\-_\\.]+').Matches.Value
     # $ShareScript = (($NonExistentShares.Details | Select-String "\s.*$").Matches.Value).Replace('mapped in ','').TrimStart() | Sort-Object -Unique
     $AdminsNonexistentShares = @()
@@ -1380,45 +1462,8 @@ function Find-AdminsNonexistentShares {
             }
         }
     }
-  
-    $AdminsNonexistentShares
-}
-function Find-UnsafeLogonScriptPermissions {
-    [CmdletBinding()]
-    param(
-        [Parameter(Mandatory = $true)]
-        [array]$LogonScripts,
-        [Parameter(Mandatory = $true)]
-        [array]$SafeUsersList
-    )
 
-    $UnsafeRights = 'FullControl|Modify|Write'
-    $SafeUsers = $SafeUsersList
-    foreach ($script in $LogonScripts){
-        # Write-Verbose -Message "Checking $($script.FullName) for unsafe permissions.."
-        $ACL = (Get-Acl $script.FullName -ErrorAction SilentlyContinue).Access
-        foreach ($entry in $ACL) {
-            if ($entry.FileSystemRights -match $UnsafeRights `
-                -and $entry.AccessControlType -eq "Allow" `
-                -and $entry.IdentityReference -notmatch $SafeUsers
-                ){
-                <#$Results = [ordered] @{
-                    Type = 'UnsafeLogonScriptPermission'
-                    File = $script.FullName
-                    User = $entry.IdentityReference.Value
-                    Rights = $entry.FileSystemRights
-                }#>
-                $User = $entry.IdentityReference.Value
-                $Rights = $entry.FileSystemRights
-                $Results = [ordered] @{
-                    Misconfiguration = 'LSM-Access-4'
-                    Description = "Unsafe logon script permissions"
-                    Details = "$User with $Rights on $($script.FullName)"
-                }
-                [pscustomobject] $Results | Sort-Object -Unique
-            }
-        }
-    }
+    $AdminsNonexistentShares
 }
 function Find-UnsafeUNCPermissions {
     [CmdletBinding()]
@@ -1426,15 +1471,31 @@ function Find-UnsafeUNCPermissions {
         [Parameter(Mandatory = $true)]
         [array]$UNCScripts,
         [Parameter(Mandatory = $true)]
-        [array]$SafeUsersList
+        [array]$SafeUsersList,
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty
     )
 
     $UnsafeRights = 'FullControl|Modify|Write'
     $SafeUsers = $SafeUsersList
     foreach ($script in $UNCScripts){
+        if ([string]::IsNullOrWhiteSpace([string]$script)) {
+            continue
+        }
+        if (-not (Test-Path -LiteralPath $script -ErrorAction SilentlyContinue)) {
+            Write-Verbose "Path does not exist or is not accessible: '$script'"
+            continue
+        }
         # Write-Host $script
         # "Checking $script for unsafe permissions.."
-        $ACL = (Get-Acl $script -ErrorAction SilentlyContinue).Access
+        try {
+            $ACL = (Get-Acl -LiteralPath $script -ErrorAction Stop).Access
+        }
+        catch {
+            Write-Verbose "Unable to read permissions for '$script': $($_.Exception.Message)"
+            continue
+        }
         foreach ($entry in $ACL) {
             if ($entry.FileSystemRights -match $UnsafeRights `
                 -and $entry.AccessControlType -eq "Allow" `
@@ -1457,7 +1518,7 @@ function Find-UnsafeUNCPermissions {
                         Details = "$User with $Rights on $Folder"
                     }
                     [pscustomobject] $Results | Sort-Object -Unique
-                } 
+                }
                     elseif ($script -match '\.') {
                     $Type = 'UnsafeUNCFilePermission'
                     <#$Results = [ordered] @{
@@ -1503,7 +1564,10 @@ function Find-UnsafeLogonScriptPermissions {
         [Parameter(Mandatory = $true)]
         [array]$LogonScripts,
         [Parameter(Mandatory = $true)]
-        [array]$SafeUsersList
+        [array]$SafeUsersList,
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty
     )
 
     $UnsafeRights = 'FullControl|Modify|Write'
@@ -1540,7 +1604,10 @@ function Find-UnsafeGPOLogonScriptPermissions {
         [Parameter(Mandatory = $true)]
         [array]$GPOLogonScripts,
         [Parameter(Mandatory = $true)]
-        [array]$SafeUsersList
+        [array]$SafeUsersList,
+        [Management.Automation.PSCredential]
+        [Management.Automation.CredentialAttribute()]
+        $Credential = [Management.Automation.PSCredential]::Empty
     )
 
     $UnsafeRights = 'FullControl|Modify|Write'
@@ -1598,41 +1665,73 @@ function Show-Results {
     }
 }
 
-Get-Art -Version '0.6-refactor'
+Get-Art -Version '0.7-2026'
 
 $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator|NT SERVICE\\TrustedInstaller|Domain Admins|Server Operators|Enterprise Admins|CREATOR OWNER'
 $AdminGroups = @("Account Operators", "Administrators", "Backup Operators", "Cryptographic Operators", "Distributed COM Users", "Domain Admins", "Domain Controllers", "Enterprise Admins", "Print Operators", "Schema Admins", "Server Operators")
-$AdminUsers = $AdminGroups | ForEach-Object { (Get-DomainGroupMember -Identity $_ -Recurse | Where-Object {$_.MemberObjectClass -eq 'user'})} | Sort-Object -Property MemberName -Unique
+
+$TargetArguments = @{}
+$CredentialArguments = @{}
+$LocationArguments = @{}
+
+if ($Credential.UserName) {
+    Write-Host "[i] Credentials detected. Running ScriptSentry as: $($Credential.UserName)"
+    $TargetArguments.Credential = $Credential
+    $CredentialArguments.Credential = $Credential
+}
+
+if ($PSBoundParameters.ContainsKey('Server')) {
+    $TargetArguments.Server = $Server
+    $TargetArguments.Domain = $Domain
+    $LocationArguments.Server = $Server
+    $LocationArguments.Domain = $Domain
+}
+
+$AdminUsers = $AdminGroups | ForEach-Object {
+    $GroupArguments = @{ Identity = $_; Recurse = $true }
+    foreach ($Name in $TargetArguments.Keys) {
+        $GroupArguments[$Name] = $TargetArguments[$Name]
+    }
+    Get-DomainGroupMember @GroupArguments | Where-Object { $_.MemberObjectClass -eq 'user' }
+} | Sort-Object -Property MemberName -Unique
 $AdminUsers | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_.MemberName }
 
-# Get a list of all logon scripts
-$LogonScripts = Get-LogonScripts
-
-# Get a list of all GPO logon scripts
-$GPOLogonScripts = Get-GPOLogonScripts
+$LogonScripts = Get-LogonScripts @TargetArguments
+$GPOLogonScripts = Get-GPOLogonScripts @TargetArguments
 
 if ($LogonScripts) {
-    # Find logon scripts (.bat, .vbs, .cmd, .ps1, .kix) that contain unc paths (e.g. \\srv01\fileshare1)
-    $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts
-
-    # Find mapped drives (e.g. \\srv01\fileshare1, \\srv02\fileshare2\accounting)
-    $MappedDrives = Find-MappedDrives -LogonScripts $LogonScripts
-
-    # Find nonexistent shares
-    $NonExistentShares = Find-NonexistentShares -LogonScripts $LogonScripts
-    #$NonExistentShares = $NonExistentSharesScripts | Where-Object {$_.Exploitable -eq 'Potentially'} | Sort-Object -Property Share -Unique
-
-    # Find admins with nonexistent shares
-    $AdminsNonExistentShares = Find-AdminsNonexistentShares -NonExistentShares $NonExistentShares -AdminUsers $AdminUsers
-
-    # Find unsafe permissions on logon scripts
-    $UnsafeLogonScripts = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts -SafeUsersList $SafeUsers
-
-    # Find credentials in logon scripts
-    $Credentials = Find-LogonScriptCredentials -LogonScripts $LogonScripts
+    $UNCScripts = Find-UNCScripts -LogonScripts $LogonScripts @CredentialArguments
+    $MappedDrives = Find-MappedDrives -LogonScripts $LogonScripts @CredentialArguments
+    $NonExistentShares = Find-NonexistentShares -LogonScripts $LogonScripts @CredentialArguments
+    $AdminsNonExistentShares = Find-AdminsNonexistentShares -NonExistentShares $NonExistentShares -AdminUsers $AdminUsers @CredentialArguments
+    $UnsafeLogonScripts = Find-UnsafeLogonScriptPermissions -LogonScripts $LogonScripts -SafeUsersList $SafeUsers @CredentialArguments
+    $Credentials = Find-LogonScriptCredentials -LogonScripts $LogonScripts @CredentialArguments
 } else {
     Write-Host "[i] No logon scripts found!`n" -ForegroundColor Cyan
 }
+
+if ($UNCScripts) {
+    $UnsafeUNCPermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts -SafeUsersList $SafeUsers @CredentialArguments
+} else {
+    Write-Host "[i] No direct UNC file references found!`n" -ForegroundColor Cyan
+}
+
+if ($MappedDrives) {
+    $UnsafeMappedDrives = Find-UnsafeUNCPermissions -UNCScripts $MappedDrives -SafeUsersList $SafeUsers @CredentialArguments
+} else {
+    Write-Host "[i] No mapped drives found!`n" -ForegroundColor Cyan
+}
+
+$NetlogonSysvol = Get-NetlogonSysvol @LocationArguments
+$UnsafeNetlogonSysvol = Find-UnsafeUNCPermissions -UNCScripts $NetlogonSysvol -SafeUsersList $SafeUsers @CredentialArguments
+
+if ($GPOLogonScripts) {
+    $UnsafeGPOLogonScripts = Find-UnsafeGPOLogonScriptPermissions -GPOLogonScripts $GPOLogonScripts -SafeUsersList $SafeUsers @CredentialArguments
+} else {
+    Write-Host "[i] No GPO logon scripts found!`n" -ForegroundColor Cyan
+}
+
+$AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers @CredentialArguments
 
 if ($NonExistentShares) {
     # Find Exploitable logon scripts
@@ -1640,34 +1739,6 @@ if ($NonExistentShares) {
 } else {
     Write-Host "[i] No non-existent shares found!`n" -ForegroundColor Cyan
 }
-
-if ($UNCScripts) {
-    # Find unsafe permissions for unc files found in logon scripts
-    $UnsafeUNCPermissions = Find-UnsafeUNCPermissions -UNCScripts $UNCScripts -SafeUsersList $SafeUsers
-} else {
-    Write-Host "[i] No UNC files found!`n" -ForegroundColor Cyan
-}
-
-if ($MappedDrives) {
-    # Find unsafe permissions for unc folders found in logon scripts
-    $UnsafeMappedDrives = Find-UnsafeUNCPermissions -UNCScripts $MappedDrives -SafeUsersList $SafeUsers
-} else {
-    Write-Host "[i] No mapped drives found!`n" -ForegroundColor Cyan
-}
-
-# Find unsafe NETLOGON & SYSVOL share permissions
-$NetlogonSysvol = Get-NetlogonSysvol
-$UnsafeNetlogonSysvol = Find-UnsafeUNCPermissions -UNCScripts $NetlogonSysvol -SafeUsersList $SafeUsers
-
-if ($GPOLogonScripts) {
-    # Find unsafe permissions on GPO logon scripts
-    $UnsafeGPOLogonScripts = Find-UnsafeGPOLogonScriptPermissions -GPOLogonScripts $GPOLogonScripts -SafeUsersList $SafeUsers
-} else {
-    Write-Host "[i] No GPO logon scripts found!`n" -ForegroundColor Cyan
-}
-
-# Find admins that have logon scripts assigned
-$AdminLogonScripts = Find-AdminLogonScripts -AdminUsers $AdminUsers
 
 # Show all results
 if ($Credentials) {Show-Results $Credentials}
@@ -1785,4 +1856,5 @@ if ($SaveOutput) {
     }
     Get-ChildItem -Filter "*.csv" -File
 }
+
 }
