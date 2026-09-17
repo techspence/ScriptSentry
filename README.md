@@ -16,10 +16,25 @@ Invoke-ScriptSentry
 IEX(Invoke-WebRequest 'https://raw.githubusercontent.com/techspence/ScriptSentry/main/Invoke-ScriptSentry.ps1')
 Invoke-ScriptSentry | Out-File c:\temp\ScriptSentry.txt
 
-# Run ScriptSentry and save results to separate csv files in the current directory
+# Run ScriptSentry and save results to ScriptSentryResults.csv in the current directory
 IEX(Invoke-WebRequest 'https://raw.githubusercontent.com/techspence/ScriptSentry/main/Invoke-ScriptSentry.ps1')
 Invoke-ScriptSentry -SaveOutput $true
+
+# Save results to a specific directory
+Invoke-ScriptSentry -SaveOutput $true -OutputDirectory C:\Temp\ScriptSentry
+
+# Use alternate credentials for LDAP queries
+$Credential = Get-Credential
+Invoke-ScriptSentry -Credential $Credential
+
+# Query a specific domain controller and domain
+Invoke-ScriptSentry -Server DC01.contoso.com -Domain contoso.com
+
+# Query a specific domain controller with alternate credentials
+Invoke-ScriptSentry -Server DC01.contoso.com -Domain contoso.com -Credential $Credential
 ```
+
+`-Server` and `-Domain` must be used together. `-Credential` applies to LDAP queries; SYSVOL, NETLOGON, and other UNC paths are accessed as the user running PowerShell.
 
 ### Example Output
 ```
