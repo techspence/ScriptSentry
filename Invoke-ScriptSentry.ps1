@@ -38,14 +38,14 @@ Param(
     [string]$Domain
 )
 
-function Get-ForestDomains {
+function Get-ScriptSentryForestDomains {
     [CmdletBinding()]
     param()
 
     $forest = [System.DirectoryServices.ActiveDirectory.Forest]::GetCurrentForest()
     $forest.Domains
 }
-function Get-Domain {
+function Get-ScriptSentryDomain {
     [OutputType([System.DirectoryServices.ActiveDirectory.Domain])]
     [CmdletBinding()]
     Param(
@@ -62,7 +62,7 @@ function Get-Domain {
     PROCESS {
         if ($PSBoundParameters['Credential']) {
 
-            Write-Verbose '[Get-Domain] Using alternate credentials for Get-Domain'
+            Write-Verbose '[Get-ScriptSentryDomain] Using alternate credentials for Get-ScriptSentryDomain'
 
             if ($PSBoundParameters['Domain']) {
                 $TargetDomain = $Domain
@@ -70,7 +70,7 @@ function Get-Domain {
             else {
                 # if no domain is supplied, extract the logon domain from the PSCredential passed
                 $TargetDomain = $Credential.GetNetworkCredential().Domain
-                Write-Verbose "[Get-Domain] Extracted domain '$TargetDomain' from -Credential"
+                Write-Verbose "[Get-ScriptSentryDomain] Extracted domain '$TargetDomain' from -Credential"
             }
 
             $DomainContext = New-Object System.DirectoryServices.ActiveDirectory.DirectoryContext('Domain', $TargetDomain, $Credential.UserName, $Credential.GetNetworkCredential().Password)
@@ -79,7 +79,7 @@ function Get-Domain {
                 [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($DomainContext)
             }
             catch {
-                Write-Verbose "[Get-Domain] The specified domain '$TargetDomain' does not exist, could not be contacted, there isn't an existing trust, or the specified credentials are invalid: $_"
+                Write-Verbose "[Get-ScriptSentryDomain] The specified domain '$TargetDomain' does not exist, could not be contacted, there isn't an existing trust, or the specified credentials are invalid: $_"
             }
         }
         elseif ($PSBoundParameters['Domain']) {
@@ -88,7 +88,7 @@ function Get-Domain {
                 [System.DirectoryServices.ActiveDirectory.Domain]::GetDomain($DomainContext)
             }
             catch {
-                Write-Verbose "[Get-Domain] The specified domain '$Domain' does not exist, could not be contacted, or there isn't an existing trust : $_"
+                Write-Verbose "[Get-ScriptSentryDomain] The specified domain '$Domain' does not exist, could not be contacted, or there isn't an existing trust : $_"
             }
         }
         else {
@@ -96,12 +96,12 @@ function Get-Domain {
                 [System.DirectoryServices.ActiveDirectory.Domain]::GetCurrentDomain()
             }
             catch {
-                Write-Verbose "[Get-Domain] Error retrieving the current domain: $_"
+                Write-Verbose "[Get-ScriptSentryDomain] Error retrieving the current domain: $_"
             }
         }
     }
 }
-function Get-DomainSearcher {
+function Get-ScriptSentryDomainSearcher {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '')]
     [OutputType('System.DirectoryServices.DirectorySearcher')]
     [CmdletBinding()]
@@ -171,8 +171,8 @@ function Get-DomainSearcher {
             }
         }
         elseif ($PSBoundParameters['Credential']) {
-            # if not -Domain is specified, but -Credential is, try to retrieve the current domain name with Get-Domain
-            $DomainObject = Get-Domain -Credential $Credential
+            # if not -Domain is specified, but -Credential is, try to retrieve the current domain name with Get-ScriptSentryDomain
+            $DomainObject = Get-ScriptSentryDomain -Credential $Credential
             $BindServer = ($DomainObject.PdcRoleOwner).Name
             $TargetDomain = $DomainObject.Name
         }
@@ -184,9 +184,9 @@ function Get-DomainSearcher {
             }
         }
         else {
-            # otherwise, resort to Get-Domain to retrieve the current domain object
-            write-verbose "get-domain"
-            $DomainObject = Get-Domain
+            # otherwise, resort to Get-ScriptSentryDomain to retrieve the current domain object
+            write-verbose "Get-ScriptSentryDomain"
+            $DomainObject = Get-ScriptSentryDomain
             $BindServer = ($DomainObject.PdcRoleOwner).Name
             $TargetDomain = $DomainObject.Name
         }
@@ -238,10 +238,10 @@ function Get-DomainSearcher {
         }
 
         $SearchString += $DN
-        Write-Verbose "[Get-DomainSearcher] search base: $SearchString"
+        Write-Verbose "[Get-ScriptSentryDomainSearcher] search base: $SearchString"
 
         if ($Credential -ne [Management.Automation.PSCredential]::Empty) {
-            Write-Verbose "[Get-DomainSearcher] Using alternate credentials for LDAP connection"
+            Write-Verbose "[Get-ScriptSentryDomainSearcher] Using alternate credentials for LDAP connection"
             # bind to the inital search object using alternate credentials
             $DomainObject = New-Object DirectoryServices.DirectoryEntry($SearchString, $Credential.UserName, $Credential.GetNetworkCredential().Password)
             $Searcher = New-Object System.DirectoryServices.DirectorySearcher($DomainObject)
@@ -287,10 +287,10 @@ function Get-DomainSearcher {
         $Searcher
     }
 }
-function Get-DomainGroupMember {
+function Get-ScriptSentryDomainGroupMember {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
-    [OutputType('StrongView.GroupMember')]
+    [OutputType('ScriptSentry.GroupMember')]
     [CmdletBinding(DefaultParameterSetName = 'None')]
     Param(
         [Parameter(Position = 0, Mandatory = $True, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True)]
@@ -370,7 +370,7 @@ function Get-DomainGroupMember {
     }
 
     PROCESS {
-        $GroupSearcher = Get-DomainSearcher @SearcherArguments
+        $GroupSearcher = Get-ScriptSentryDomainSearcher @SearcherArguments
         if ($GroupSearcher) {
             if ($PSBoundParameters['RecurseUsingMatchingRule']) {
                 $SearcherArguments['Identity'] = $Identity
@@ -378,7 +378,7 @@ function Get-DomainGroupMember {
                 $Group = Get-DomainGroup @SearcherArguments
 
                 if (-not $Group) {
-                    Write-Warning "[Get-DomainGroupMember] Error searching for group with identity: $Identity"
+                    Write-Warning "[Get-ScriptSentryDomainGroupMember] Error searching for group with identity: $Identity"
                 }
                 else {
                     $GroupFoundName = $Group.properties.item('samaccountname')[0]
@@ -393,7 +393,7 @@ function Get-DomainGroupMember {
                             $GroupFoundDomain = $GroupFoundDN.SubString($GroupFoundDN.IndexOf('DC=')) -replace 'DC=','' -replace ',','.'
                         }
                     }
-                    Write-Verbose "[Get-DomainGroupMember] Using LDAP matching rule to recurse on '$GroupFoundDN', only user accounts will be returned."
+                    Write-Verbose "[Get-ScriptSentryDomainGroupMember] Using LDAP matching rule to recurse on '$GroupFoundDN', only user accounts will be returned."
                     $GroupSearcher.filter = "(&(samAccountType=805306368)(memberof:1.2.840.113556.1.4.1941:=$GroupFoundDN))"
                     $GroupSearcher.PropertiesToLoad.AddRange(('distinguishedName'))
                     $Members = $GroupSearcher.FindAll() | ForEach-Object {$_.Properties.distinguishedname[0]}
@@ -414,11 +414,11 @@ function Get-DomainGroupMember {
                             # if a -Domain isn't explicitly set, extract the object domain out of the distinguishedname
                             #   and rebuild the domain searcher
                             $IdentityDomain = $IdentityInstance.SubString($IdentityInstance.IndexOf('DC=')) -replace 'DC=','' -replace ',','.'
-                            Write-Verbose "[Get-DomainGroupMember] Extracted domain '$IdentityDomain' from '$IdentityInstance'"
+                            Write-Verbose "[Get-ScriptSentryDomainGroupMember] Extracted domain '$IdentityDomain' from '$IdentityInstance'"
                             $SearcherArguments['Domain'] = $IdentityDomain
-                            $GroupSearcher = Get-DomainSearcher @SearcherArguments
+                            $GroupSearcher = Get-ScriptSentryDomainSearcher @SearcherArguments
                             if (-not $GroupSearcher) {
-                                Write-Warning "[Get-DomainGroupMember] Unable to retrieve domain searcher for '$IdentityDomain'"
+                                Write-Warning "[Get-ScriptSentryDomainGroupMember] Unable to retrieve domain searcher for '$IdentityDomain'"
                             }
                         }
                     }
@@ -433,8 +433,8 @@ function Get-DomainGroupMember {
                             $GroupName = $IdentityInstance.Split('\')[1]
                             $IdentityFilter += "(samAccountName=$GroupName)"
                             $SearcherArguments['Domain'] = $GroupDomain
-                            Write-Verbose "[Get-DomainGroupMember] Extracted domain '$GroupDomain' from '$IdentityInstance'"
-                            $GroupSearcher = Get-DomainSearcher @SearcherArguments
+                            Write-Verbose "[Get-ScriptSentryDomainGroupMember] Extracted domain '$GroupDomain' from '$IdentityInstance'"
+                            $GroupSearcher = Get-ScriptSentryDomainSearcher @SearcherArguments
                         }
                     }
                     else {
@@ -447,17 +447,17 @@ function Get-DomainGroupMember {
                 }
 
                 if ($PSBoundParameters['LDAPFilter']) {
-                    Write-Verbose "[Get-DomainGroupMember] Using additional LDAP filter: $LDAPFilter"
+                    Write-Verbose "[Get-ScriptSentryDomainGroupMember] Using additional LDAP filter: $LDAPFilter"
                     $Filter += "$LDAPFilter"
                 }
 
                 $GroupSearcher.filter = "(&(objectCategory=group)$Filter)"
-                Write-Verbose "[Get-DomainGroupMember] Get-DomainGroupMember filter string: $($GroupSearcher.filter)"
+                Write-Verbose "[Get-ScriptSentryDomainGroupMember] Get-ScriptSentryDomainGroupMember filter string: $($GroupSearcher.filter)"
                 try {
                     $Result = $GroupSearcher.FindOne()
                 }
                 catch {
-                    Write-Warning "[Get-DomainGroupMember] Error searching for group with identity '$Identity': $_"
+                    Write-Warning "[Get-ScriptSentryDomainGroupMember] Error searching for group with identity '$Identity': $_"
                     $Members = @()
                 }
 
@@ -525,7 +525,7 @@ function Get-DomainGroupMember {
                     $ObjectSearcherArguments['Identity'] = $Member
                     $ObjectSearcherArguments['Raw'] = $True
                     $ObjectSearcherArguments['Properties'] = 'distinguishedname,cn,samaccountname,objectsid,objectclass'
-                    $Object = Get-DomainObject @ObjectSearcherArguments
+                    $Object = Get-ScriptSentryDomainObject @ObjectSearcherArguments
                     $Properties = $Object.Properties
                 }
 
@@ -555,12 +555,12 @@ function Get-DomainGroupMember {
                                     $MemberDomain = $MemberSimpleName.Split('@')[1]
                                 }
                                 else {
-                                    Write-Warning "[Get-DomainGroupMember] Error converting $MemberDN"
+                                    Write-Warning "[Get-ScriptSentryDomainGroupMember] Error converting $MemberDN"
                                     $MemberDomain = $Null
                                 }
                             }
                             catch {
-                                Write-Warning "[Get-DomainGroupMember] Error converting $MemberDN"
+                                Write-Warning "[Get-ScriptSentryDomainGroupMember] Error converting $MemberDN"
                                 $MemberDomain = $Null
                             }
                         }
@@ -606,15 +606,15 @@ function Get-DomainGroupMember {
                     $GroupMember | Add-Member Noteproperty 'MemberDistinguishedName' $MemberDN
                     $GroupMember | Add-Member Noteproperty 'MemberObjectClass' $MemberObjectClass
                     $GroupMember | Add-Member Noteproperty 'MemberSID' $MemberSID
-                    $GroupMember.PSObject.TypeNames.Insert(0, 'StrongView.GroupMember')
+                    $GroupMember.PSObject.TypeNames.Insert(0, 'ScriptSentry.GroupMember')
                     $GroupMember
 
                     # if we're doing manual recursion
                     if ($PSBoundParameters['Recurse'] -and $MemberDN -and ($MemberObjectClass -match 'group')) {
-                        Write-Verbose "[Get-DomainGroupMember] Manually recursing on group: $MemberDN"
+                        Write-Verbose "[Get-ScriptSentryDomainGroupMember] Manually recursing on group: $MemberDN"
                         $SearcherArguments['Identity'] = $MemberDN
                         $Null = $SearcherArguments.Remove('Properties')
-                        Get-DomainGroupMember @SearcherArguments
+                        Get-ScriptSentryDomainGroupMember @SearcherArguments
                     }
                 }
             }
@@ -622,11 +622,11 @@ function Get-DomainGroupMember {
         }
     }
 }
-function Get-DomainUser {
+function Get-ScriptSentryDomainUser {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSShouldProcess', '')]
-    [OutputType('StrongView.User')]
-    [OutputType('StrongView.User.Raw')]
+    [OutputType('ScriptSentry.User')]
+    [OutputType('ScriptSentry.User.Raw')]
     [CmdletBinding(DefaultParameterSetName = 'AllowDelegation')]
     Param(
             [Parameter(Position = 0, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True)]
@@ -720,7 +720,7 @@ function Get-DomainUser {
             if ($PSBoundParameters['SecurityMasks']) { $SearcherArguments['SecurityMasks'] = $SecurityMasks }
             if ($PSBoundParameters['Tombstone']) { $SearcherArguments['Tombstone'] = $Tombstone }
             if ($PSBoundParameters['Credential']) { $SearcherArguments['Credential'] = $Credential }
-            $UserSearcher = Get-DomainSearcher @SearcherArguments
+            $UserSearcher = Get-ScriptSentryDomainSearcher @SearcherArguments
         }
 
     PROCESS {
@@ -738,11 +738,11 @@ function Get-DomainUser {
                             # if a -Domain isn't explicitly set, extract the object domain out of the distinguishedname
                             #   and rebuild the domain searcher
                             $IdentityDomain = $IdentityInstance.SubString($IdentityInstance.IndexOf('DC=')) -replace 'DC=','' -replace ',','.'
-                            Write-Verbose "[Get-DomainUser] Extracted domain '$IdentityDomain' from '$IdentityInstance'"
+                            Write-Verbose "[Get-ScriptSentryDomainUser] Extracted domain '$IdentityDomain' from '$IdentityInstance'"
                             $SearcherArguments['Domain'] = $IdentityDomain
-                            $UserSearcher = Get-DomainSearcher @SearcherArguments
+                            $UserSearcher = Get-ScriptSentryDomainSearcher @SearcherArguments
                             if (-not $UserSearcher) {
-                                Write-Warning "[Get-DomainUser] Unable to retrieve domain searcher for '$IdentityDomain'"
+                                Write-Warning "[Get-ScriptSentryDomainUser] Unable to retrieve domain searcher for '$IdentityDomain'"
                             }
                         }
                     }
@@ -757,8 +757,8 @@ function Get-DomainUser {
                             $UserName = $IdentityInstance.Split('\')[1]
                             $IdentityFilter += "(samAccountName=$UserName)"
                             $SearcherArguments['Domain'] = $UserDomain
-                            Write-Verbose "[Get-DomainUser] Extracted domain '$UserDomain' from '$IdentityInstance'"
-                            $UserSearcher = Get-DomainSearcher @SearcherArguments
+                            Write-Verbose "[Get-ScriptSentryDomainUser] Extracted domain '$UserDomain' from '$IdentityInstance'"
+                            $UserSearcher = Get-ScriptSentryDomainSearcher @SearcherArguments
                         }
                     }
                     else {
@@ -771,32 +771,32 @@ function Get-DomainUser {
                 }
 
                 if ($PSBoundParameters['SPN']) {
-                    Write-Verbose '[Get-DomainUser] Searching for non-null service principal names'
+                    Write-Verbose '[Get-ScriptSentryDomainUser] Searching for non-null service principal names'
                     $Filter += '(servicePrincipalName=*)'
                 }
                 if ($PSBoundParameters['AllowDelegation']) {
-                    Write-Verbose '[Get-DomainUser] Searching for users who can be delegated'
+                    Write-Verbose '[Get-ScriptSentryDomainUser] Searching for users who can be delegated'
                     # negation of "Accounts that are sensitive and not trusted for delegation"
                     $Filter += '(!(userAccountControl:1.2.840.113556.1.4.803:=1048574))'
                 }
                 if ($PSBoundParameters['DisallowDelegation']) {
-                    Write-Verbose '[Get-DomainUser] Searching for users who are sensitive and not trusted for delegation'
+                    Write-Verbose '[Get-ScriptSentryDomainUser] Searching for users who are sensitive and not trusted for delegation'
                     $Filter += '(userAccountControl:1.2.840.113556.1.4.803:=1048574)'
                 }
                 if ($PSBoundParameters['AdminCount']) {
-                    Write-Verbose '[Get-DomainUser] Searching for adminCount=1'
+                    Write-Verbose '[Get-ScriptSentryDomainUser] Searching for adminCount=1'
                     $Filter += '(admincount=1)'
                 }
                 if ($PSBoundParameters['TrustedToAuth']) {
-                    Write-Verbose '[Get-DomainUser] Searching for users that are trusted to authenticate for other principals'
+                    Write-Verbose '[Get-ScriptSentryDomainUser] Searching for users that are trusted to authenticate for other principals'
                     $Filter += '(msds-allowedtodelegateto=*)'
                 }
                 if ($PSBoundParameters['PreauthNotRequired']) {
-                    Write-Verbose '[Get-DomainUser] Searching for user accounts that do not require kerberos preauthenticate'
+                    Write-Verbose '[Get-ScriptSentryDomainUser] Searching for user accounts that do not require kerberos preauthenticate'
                     $Filter += '(userAccountControl:1.2.840.113556.1.4.803:=4194304)'
                 }
                 if ($PSBoundParameters['LDAPFilter']) {
-                    Write-Verbose "[Get-DomainUser] Using additional LDAP filter: $LDAPFilter"
+                    Write-Verbose "[Get-ScriptSentryDomainUser] Using additional LDAP filter: $LDAPFilter"
                     $Filter += "$LDAPFilter"
                 }
 
@@ -814,7 +814,7 @@ function Get-DomainUser {
                 }
 
                 $UserSearcher.filter = "(&(samAccountType=805306368)$Filter)"
-                Write-Verbose "[Get-DomainUser] filter string: $($UserSearcher.filter)"
+                Write-Verbose "[Get-ScriptSentryDomainUser] filter string: $($UserSearcher.filter)"
 
                 if ($PSBoundParameters['FindOne']) { $Results = $UserSearcher.FindOne() }
                 else { $Results = $UserSearcher.FindAll() }
@@ -822,28 +822,28 @@ function Get-DomainUser {
                     if ($PSBoundParameters['Raw']) {
                         # return raw result objects
                         $User = $_
-                        $User.PSObject.TypeNames.Insert(0, 'StrongView.User.Raw')
+                        $User.PSObject.TypeNames.Insert(0, 'ScriptSentry.User.Raw')
                     }
                     else {
                         $User = Convert-LDAPProperty -Properties $_.Properties
-                        $User.PSObject.TypeNames.Insert(0, 'StrongView.User')
+                        $User.PSObject.TypeNames.Insert(0, 'ScriptSentry.User')
                     }
                     $User
                 }
                 if ($Results) {
                     try { $Results.dispose() }
                     catch {
-                        Write-Verbose "[Get-DomainUser] Error disposing of the Results object: $_"
+                        Write-Verbose "[Get-ScriptSentryDomainUser] Error disposing of the Results object: $_"
                     }
                 }
                 $UserSearcher.dispose()
             }
         }
 }
-function Get-DomainObject {
+function Get-ScriptSentryDomainObject {
     [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSUseDeclaredVarsMoreThanAssignments', '')]
-    [OutputType('StrongView.ADObject')]
-    [OutputType('StrongView.ADObject.Raw')]
+    [OutputType('ScriptSentry.ADObject')]
+    [OutputType('ScriptSentry.ADObject.Raw')]
     [CmdletBinding()]
     Param(
         [Parameter(Position = 0, ValueFromPipeline = $True, ValueFromPipelineByPropertyName = $True)]
@@ -917,7 +917,7 @@ function Get-DomainObject {
         if ($PSBoundParameters['SecurityMasks']) { $SearcherArguments['SecurityMasks'] = $SecurityMasks }
         if ($PSBoundParameters['Tombstone']) { $SearcherArguments['Tombstone'] = $Tombstone }
         if ($PSBoundParameters['Credential']) { $SearcherArguments['Credential'] = $Credential }
-        $ObjectSearcher = Get-DomainSearcher @SearcherArguments
+        $ObjectSearcher = Get-ScriptSentryDomainSearcher @SearcherArguments
     }
 
     PROCESS {
@@ -935,11 +935,11 @@ function Get-DomainObject {
                         # if a -Domain isn't explicitly set, extract the object domain out of the distinguishedname
                         #   and rebuild the domain searcher
                         $IdentityDomain = $IdentityInstance.SubString($IdentityInstance.IndexOf('DC=')) -replace 'DC=','' -replace ',','.'
-                        Write-Verbose "[Get-DomainObject] Extracted domain '$IdentityDomain' from '$IdentityInstance'"
+                        Write-Verbose "[Get-ScriptSentryDomainObject] Extracted domain '$IdentityDomain' from '$IdentityInstance'"
                         $SearcherArguments['Domain'] = $IdentityDomain
-                        $ObjectSearcher = Get-DomainSearcher @SearcherArguments
+                        $ObjectSearcher = Get-ScriptSentryDomainSearcher @SearcherArguments
                         if (-not $ObjectSearcher) {
-                            Write-Warning "[Get-DomainObject] Unable to retrieve domain searcher for '$IdentityDomain'"
+                            Write-Warning "[Get-ScriptSentryDomainObject] Unable to retrieve domain searcher for '$IdentityDomain'"
                         }
                     }
                 }
@@ -954,8 +954,8 @@ function Get-DomainObject {
                         $ObjectName = $IdentityInstance.Split('\')[1]
                         $IdentityFilter += "(samAccountName=$ObjectName)"
                         $SearcherArguments['Domain'] = $ObjectDomain
-                        Write-Verbose "[Get-DomainObject] Extracted domain '$ObjectDomain' from '$IdentityInstance'"
-                        $ObjectSearcher = Get-DomainSearcher @SearcherArguments
+                        Write-Verbose "[Get-ScriptSentryDomainObject] Extracted domain '$ObjectDomain' from '$IdentityInstance'"
+                        $ObjectSearcher = Get-ScriptSentryDomainSearcher @SearcherArguments
                     }
                 }
                 elseif ($IdentityInstance.Contains('.')) {
@@ -970,7 +970,7 @@ function Get-DomainObject {
             }
 
             if ($PSBoundParameters['LDAPFilter']) {
-                Write-Verbose "[Get-DomainObject] Using additional LDAP filter: $LDAPFilter"
+                Write-Verbose "[Get-ScriptSentryDomainObject] Using additional LDAP filter: $LDAPFilter"
                 $Filter += "$LDAPFilter"
             }
 
@@ -990,7 +990,7 @@ function Get-DomainObject {
             if ($Filter -and $Filter -ne '') {
                 $ObjectSearcher.filter = "(&$Filter)"
             }
-            Write-Verbose "[Get-DomainObject] Get-DomainObject filter string: $($ObjectSearcher.filter)"
+            Write-Verbose "[Get-ScriptSentryDomainObject] Get-ScriptSentryDomainObject filter string: $($ObjectSearcher.filter)"
 
             if ($PSBoundParameters['FindOne']) { $Results = $ObjectSearcher.FindOne() }
             else { $Results = $ObjectSearcher.FindAll() }
@@ -998,18 +998,18 @@ function Get-DomainObject {
                 if ($PSBoundParameters['Raw']) {
                     # return raw result objects
                     $Object = $_
-                    $Object.PSObject.TypeNames.Insert(0, 'StrongView.ADObject.Raw')
+                    $Object.PSObject.TypeNames.Insert(0, 'ScriptSentry.ADObject.Raw')
                 }
                 else {
                     $Object = Convert-LDAPProperty -Properties $_.Properties
-                    $Object.PSObject.TypeNames.Insert(0, 'StrongView.ADObject')
+                    $Object.PSObject.TypeNames.Insert(0, 'ScriptSentry.ADObject')
                 }
                 $Object
             }
             if ($Results) {
                 try { $Results.dispose() }
                 catch {
-                    Write-Verbose "[Get-DomainObject] Error disposing of the Results object: $_"
+                    Write-Verbose "[Get-ScriptSentryDomainObject] Error disposing of the Results object: $_"
                 }
             }
             $ObjectSearcher.dispose()
@@ -1035,7 +1035,7 @@ function Get-LogonScripts {
     if ($Domain) {
         $Domains = $Domain
     } else {
-        $Domains = Get-ForestDomains
+        $Domains = Get-ScriptSentryForestDomains
     }
 
     foreach ($Domain in $Domains) {
@@ -1077,7 +1077,7 @@ function Get-GPOLogonScripts {
     if ($Domain) {
         $Domains = $Domain
     } else {
-        $Domains = Get-ForestDomains
+        $Domains = Get-ScriptSentryForestDomains
     }
 
     foreach ($Domain in $Domains) {
@@ -1112,7 +1112,7 @@ function Get-NetlogonSysvol {
     if ($Domain) {
         $Domains = $Domain
     } else {
-        $Domains = Get-ForestDomains
+        $Domains = Get-ScriptSentryForestDomains
     }
     foreach ($Domain in $Domains){
         $DomainName = if ($Domain -is [string]) { $Domain } else { $Domain.Name }
@@ -1158,7 +1158,7 @@ Required Dependencies: None
 .DESCRIPTION
 
 Converts a set of raw LDAP properties results from ADSI/LDAP searches
-into a proper PSObject. Used by several of the Get-Domain* function.
+into a proper PSObject. Used by several of the Get-ScriptSentryDomain* function.
 
 .PARAMETER Properties
 
@@ -1284,7 +1284,7 @@ function Find-AdminLogonScripts {
         if ($Credential -ne [Management.Automation.PSCredential]::Empty) {
             $UserArguments.Credential = $Credential
         }
-        $AdminLogonScripts = Get-DomainUser @UserArguments | Where-Object { $null -ne $_.scriptPath }
+        $AdminLogonScripts = Get-ScriptSentryDomainUser @UserArguments | Where-Object { $null -ne $_.scriptPath }
 
         # "`n[!] Admins found with logon scripts"
         $AdminLogonScripts | Foreach-object {
@@ -1665,7 +1665,7 @@ function Show-Results {
     }
 }
 
-Get-Art -Version '0.7-2026'
+Get-Art -Version '0.10-2026'
 
 $SafeUsers = 'NT AUTHORITY\\SYSTEM|Administrator|NT SERVICE\\TrustedInstaller|Domain Admins|Server Operators|Enterprise Admins|CREATOR OWNER'
 $AdminGroups = @("Account Operators", "Administrators", "Backup Operators", "Cryptographic Operators", "Distributed COM Users", "Domain Admins", "Domain Controllers", "Enterprise Admins", "Print Operators", "Schema Admins", "Server Operators")
@@ -1692,7 +1692,7 @@ $AdminUsers = $AdminGroups | ForEach-Object {
     foreach ($Name in $TargetArguments.Keys) {
         $GroupArguments[$Name] = $TargetArguments[$Name]
     }
-    Get-DomainGroupMember @GroupArguments | Where-Object { $_.MemberObjectClass -eq 'user' }
+    Get-ScriptSentryDomainGroupMember @GroupArguments | Where-Object { $_.MemberObjectClass -eq 'user' }
 } | Sort-Object -Property MemberName -Unique
 $AdminUsers | ForEach-Object { $SafeUsers = $SafeUsers + '|' + $_.MemberName }
 
